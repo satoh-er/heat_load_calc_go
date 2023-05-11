@@ -5,12 +5,6 @@ package main
 「本計算のステップ数」「助走計算のステップ数」「助走計算のうち建物全体を解く日数」を定義する。
 */
 
-// type Tuple struct {
-// 	stepMain       int
-// 	stepRunUp      int
-// 	stepRunUpBuild int
-// }
-
 /*
    Args:
        n_step_hourly: 計算間隔（1時間を何分割するかどうか）（デフォルトは4（15分間隔））

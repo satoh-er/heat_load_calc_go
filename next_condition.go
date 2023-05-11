@@ -4,30 +4,6 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// func make_get_next_temp_and_load_function(
-// 	ac_demand_is_ns mat.Matrix,
-// 	is_radiative_heating_is []bool,
-// 	is_radiative_cooling_is []bool,
-// 	lr_h_max_cap_is mat.Vector,
-// 	lr_cs_max_cap_is mat.Vector,
-// ) func(mat.Vector, mat.Matrix, mat.Matrix, mat.Vector, mat.Vector, []OperationMode, mat.Vector, []bool, []bool, int) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
-
-// 	return func(
-// 		brc_ot_is_n mat.Vector,
-// 		brm_ot_is_is_n mat.Matrix,
-// 		brl_ot_is_is_n mat.Matrix,
-// 		theta_lower_target_is_n mat.Vector,
-// 		theta_upper_target_is_n mat.Vector,
-// 		operation_mode_is_n []OperationMode,
-// 		theta_natural_is_n mat.Vector,
-// 		is_heating_is_n []bool,
-// 		is_cooling_is_n []bool,
-// 		n int,
-// 	) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
-// 		return get_next_temp_and_load(ac_demand_is_ns, brc_ot_is_n, brm_ot_is_is_n, brl_ot_is_is_n, theta_lower_target_is_n, theta_upper_target_is_n, operation_mode_is_n, is_radiative_heating_is, is_radiative_cooling_is, lr_h_max_cap_is, lr_cs_max_cap_is, theta_natural_is_n, is_heating_is_n, is_cooling_is_n, n)
-// 	}
-// }
-
 func get_next_temp_and_load(
 	ac_demand_is_ns mat.Matrix,
 	brc_ot_is_n mat.Vector,
@@ -279,21 +255,6 @@ func get_load_and_temp(
 	x2.AddVec(&x2, &x2_term3)
 	x2.AddVec(&x2, k)
 
-	// V = theta + Lc + Lr
-	// とすると、
-	// X1 V = X2
-	// V = X1^-1 X2
-	// となる。 V は [i, 1] の縦ベクトル。
-	// var x1inv mat.Dense
-	// if err := x1inv.Inverse(&x1); err != nil {
-	// 	panic(err)
-	// }
-	// var v mat.VecDense
-	// v.MulVec(&x1inv, &x2)
-
-	// NOTE: Gonumの Inverse が次のエラーを返す場合がある。
-	// `matrix singular or near-singular with condition number`
-	// そのため、SolveVec を使って直接解を得ることとする
 	var v mat.VecDense
 	v.SolveVec(&x1, &x2)
 

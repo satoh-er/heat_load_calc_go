@@ -49,7 +49,7 @@ func calc(
 	// （ループ計算する必要の無い）事前計算を行い, クラス PreCalcParameters, PreCalcParametersGround に必要な変数を格納する。
 	sqc := NewSequence(itv, rd, w, scd)
 
-	pp := sqc.pre_calc_parameters()
+	pp := sqc.pre_calc_parameters
 
 	gc_n := initialize_ground_conditions(sqc.bs.n_ground)
 

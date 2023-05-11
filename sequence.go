@@ -5,102 +5,16 @@ import (
 )
 
 type PreCalcParameters struct {
-	// // 空間の数, [i]
-	// n_rm int
-
-	// // 空間のID
-	// id_rm_is []int
-
-	// // 空間の名前, [i]
-	// name_rm_is []string
-
-	// // 室iの容積, m3, [i, 1]
-	// v_rm_is mat.Vector
-
-	// // 室 i の備品等の熱容量, J/K, [i, 1]
-	// c_sh_frt_is mat.Vector
-
-	// // 室 i の備品等の湿気容量, kg/(kg/kgDA), [i, 1]
-	// c_lh_frt_is mat.Vector
-
-	// //  室 i の空気と備品等間の熱コンダクタンス, W/K, [i, 1]
-	// g_sh_frt_is mat.Vector
-
-	// // 室 i の空気と備品等間の湿気コンダクタンス, kg/(s (kg/kgDA)), [i, 1]
-	// g_lh_frt_is mat.Vector
-
-	// // ステップnにおける室iの空調需要, [i, 8760*4]
-	// ac_demand_is_ns mat.Matrix
-
-	// // ステップnの室iにおける在室人数, [i, 8760*4]
-	// n_hum_is_ns mat.Matrix
-
-	// // ステップnの室iにおける人体発熱を除く内部発熱, W, [i, 8760*4]
-	// q_gen_is_ns mat.Matrix
-
-	// // ステップnの室iにおける人体発湿を除く内部発湿, kg/s, [i, 8760*4]
-	// x_gen_is_ns mat.Matrix
-
 	// ステップnの室iにおける機械換気量（全般換気量+局所換気量）, m3/s, [i, 8760*4]
 	v_vent_mec_is_ns mat.Matrix
 
 	// ステップ n における室 i に設置された備品等による透過日射吸収熱量, W, [i, n+1]
 	q_sol_frt_is_ns mat.Matrix
 
-	// // 室iの自然風利用時の換気量, m3/s, [i, 1]
-	// v_vent_ntr_set_is mat.Vector
-
-	// // ステップ n における室 i の窓の透過日射熱取得, W, [i, n+1]
-	// q_trs_sol_is_ns mat.Matrix
-
-	// // 室iの隣室からの機械換気量, m3/s, [i, i]
-	// v_vent_int_is_is mat.Matrix
-
-	// // 境界のID, [j, 1]
-	// id_bdry_js []int
-
-	// // 境界jの名前, [j]
-	// name_bdry_js []string
-
-	// // 境界jの名前2, [j]
-	// sub_name_bdry_js []string
-
-	// // 境界jが地盤かどうか, [j, 1]
-	// is_ground_js []bool
-
-	// // 境界jの面積, m2, [j, 1]
-	// a_s_js mat.Vector
-
-	// // 放射暖房対流比率, [i, 1]
-	// beta_h_is mat.Vector
-	// beta_c_is mat.Vector
-
-	// // === 境界jに関すること ===
-
-	// // 境界jの項別公比法における項mの公比, [j, 12]
-	// r_js_ms mat.Matrix
-
-	// // 境界jの貫流応答係数の初項, [j]
-	// phi_t0_js mat.Vector
-
-	// // 境界jの吸熱応答係数の初項, m2K/W, [j]
-	// phi_a0_js mat.Vector
-
-	// // 境界jの項別公比法における項mの貫流応答係数の第一項, [j,12]
-	// phi_t1_js_ms mat.Matrix
-
-	// // 境界jの項別公比法における項mの吸熱応答係数の第一項 , m2K/W, [j, 12]
-	// phi_a1_js_ms mat.Matrix
-
 	// ステップnの境界jにおける透過日射熱取得量のうち表面に吸収される日射量, W/m2, [j, 8760*4]
 	q_s_sol_js_ns mat.Matrix
 
-	// n_bdry int
-
 	f_ax_js_js mat.Matrix
-
-	// p_is_js mat.Matrix
-	// p_js_is mat.Matrix
 
 	// 室iの在室者に対する境界j*の形態係数
 	f_mrt_hum_is_js mat.Matrix
@@ -108,51 +22,11 @@ type PreCalcParameters struct {
 	// 平均放射温度計算時の境界 j* の表面温度が境界 j に与える重み, [j, j]
 	f_mrt_is_js mat.Matrix
 
-	// // 境界jにおける室内側放射熱伝達率, W/m2K, [j, 1]
-	// h_s_r_js mat.Vector
-
-	// // 境界jにおける室内側対流熱伝達率, W/m2K, [j, 1]
-	// h_s_c_js mat.Vector
-
-	// // 境界jにおけるシミュレーションに用いる表面熱伝達抵抗での熱貫流率, W/m2K, [j,1]
-	// simulation_u_value mat.Vector
-
 	// WSR, WSB の計算 式(24)
 	f_wsr_js_is mat.Matrix
 
-	// // 床暖房の発熱部位？
-	// f_flr_h_js_is mat.Matrix
-	// f_flr_c_js_is mat.Matrix
-
 	// WSC, W, [j, n]
 	f_wsc_js_ns *mat.Dense
-
-	// // 境界jの裏面温度に他の境界の等価温度が与える影響, [j, j]
-	// k_ei_js_js mat.Matrix
-
-	// // ステップnの外気温度, degree C, [n]
-	// theta_o_ns []float64
-
-	// // ステップnの外気絶対湿度, kg/kg(DA), [n]
-	// x_o_ns mat.Vector
-
-	// // 温度差係数, -, [j, 1]
-	// k_eo_js mat.Vector
-
-	// k_s_r_js_is mat.Matrix
-
-	// // ステップ n の境界 j における相当外気温度, ℃, [j, n]
-	// theta_o_eqv_js_ns mat.Matrix
-
-	// get_operation_mode_is_n func([]OperationMode, *mat.VecDense, *mat.VecDense, *mat.VecDense, int) []OperationMode
-
-	// get_theta_target_is_n func([]OperationMode, mat.Vector, mat.Vector, mat.Vector, int) (mat.Vector, mat.Vector, mat.Vector, mat.Vector, mat.Vector, mat.Vector)
-
-	// get_infiltration func(theta_r_is_n mat.Vector, theta_o_n float64) mat.Vector
-
-	// calc_next_temp_and_load func(mat.Vector, mat.Matrix, mat.Matrix, mat.Vector, mat.Vector, []OperationMode, mat.Vector, []bool, []bool, int) (*mat.VecDense, *mat.VecDense, *mat.VecDense)
-
-	// met_is mat.Vector
 
 	// ステップ n における室 i の在室者表面における放射熱伝達率の総合熱伝達率に対する比, -, [i, 1]
 	k_r_is_n mat.Vector
@@ -182,45 +56,9 @@ type Sequence struct {
 		ステップ n　からステップ n+1 における係数 f_l_cl_wgt, kg/s(kg/kg(DA)), [i, i]
 		ステップ n　からステップ n+1 における係数 f_l_cl_cst, kg/s, [i, 1]
 	*/
-	get_f_l_cl           func(mat.Vector, mat.Vector, mat.Vector) (*mat.VecDense, *mat.Dense)
-	_pre_calc_parameters *PreCalcParameters
+	get_f_l_cl          func(mat.Vector, mat.Vector, mat.Vector) (*mat.VecDense, *mat.Dense)
+	pre_calc_parameters *PreCalcParameters
 }
-
-// type PreCalcParametersGround struct {
-
-// 	// 地盤の数
-// 	n_grounds int
-
-// 	// 地盤jの項別公比法における項mの公比, [j, 12]
-// 	r_js_ms *mat.Dense
-
-// 	// 境界jの貫流応答係数の初項, [j]
-// 	phi_t0_js *mat.VecDense
-
-// 	// 地盤jの吸熱応答係数の初項, m2K/W, [j, 1]
-// 	phi_a0_js *mat.VecDense
-
-// 	// 境界jの項別公比法における項mの貫流応答係数の第一項, [j,12]
-// 	phi_t1_js_ms *mat.Dense
-
-// 	// 地盤jの項別公比法における項mの吸熱応答係数の第一項 , m2K/W, [j, 12]
-// 	phi_a1_js_ms *mat.Dense
-
-// 	// 地盤jにおける室内側放射熱伝達率, W/m2K, [j, 1]
-// 	h_s_r_js *mat.VecDense
-
-// 	// 地盤jにおける室内側対流熱伝達率, W/m2K, [j, 1]
-// 	h_s_c_js *mat.VecDense
-
-// 	// ステップnの外気温度, degree C, [n]
-// 	theta_o_ns []float64
-
-// 	// 温度差係数, -, [j, 1]
-// 	k_eo_js *mat.VecDense
-
-// 	// ステップ n の境界 j における相当外気温度, ℃, [j, n]
-// 	theta_o_eqv_js_ns *mat.Dense
-// }
 
 /*
    Args:
@@ -318,16 +156,12 @@ func NewSequence(
 		//   ステップ n　からステップ n+1 における係数 f_l_cl_cst, kg/s, [i, 1]
 		get_f_l_cl: get_f_l_cl,
 
-		_pre_calc_parameters: pre_calc_parameters,
+		pre_calc_parameters: pre_calc_parameters,
 	}
 }
 
-func (s *Sequence) pre_calc_parameters() *PreCalcParameters {
-	return s._pre_calc_parameters
-}
-
 func (s *Sequence) run_tick(n int, nn int, c_n *Conditions, recorder *Recorder) *Conditions {
-	ss := s.pre_calc_parameters()
+	ss := s.pre_calc_parameters
 	delta_t := s._delta_t
 
 	return _run_tick(s, n, nn, delta_t, ss, c_n, recorder)
@@ -335,7 +169,7 @@ func (s *Sequence) run_tick(n int, nn int, c_n *Conditions, recorder *Recorder) 
 
 func (s *Sequence) run_tick_ground(gc_n *GroundConditions, n int, nn int) *GroundConditions {
 
-	pp := s.pre_calc_parameters()
+	pp := s.pre_calc_parameters
 
 	return _run_tick_ground(s, pp, gc_n, n, nn)
 }
@@ -2205,55 +2039,6 @@ func get_theta_r_ot_ntr_is_n_pls(
 
 	return &result1, &result2
 }
-
-// /*
-//     Args:
-//         f_xc_is_n_pls: ステップ n+1 における係数 f_XC, degree C, [i, 1]
-//         f_brc_non_nv_is_n_pls: ステップn+1における自然風非利用時の係数f_BRC,OT, W, [i,1]
-//         f_brc_nv_is_n_pls: ステップn+1における自然風利用時の係数f_BRC,OT, W, [i,1]
-//         f_brm_non_nv_is_is_n_pls: ステップn+1における自然風非利用時の係数f_BRM,OT, W, [i,i]
-//         f_brm_nv_is_is_n_pls: ステップn+1における自然風利用時の係数f_BRM,OT, W, [i,i]
-//     Returns:
-//         ステップn+1における自然風非利用時の係数f_BRC,OT, W, [i, 1]
-//         ステップn+1における自然風利用時の係数f_BRC,OT, W, [i, 1]
-
-// 	Notes:
-// 		式(2.17)
-// */
-// func get_f_brc_ot_is_n_pls(
-// 	f_xc_is_n_pls mat.Vector,
-// 	f_brc_non_nv_is_n_pls mat.Vector,
-// 	f_brc_nv_is_n_pls mat.Vector,
-// 	f_brm_non_nv_is_is_n_pls mat.Matrix,
-// 	f_brm_nv_is_is_n_pls mat.Matrix,
-// ) (*mat.VecDense, *mat.VecDense) {
-// 	var result1, result2 mat.VecDense
-// 	result1.SolveVec(f_brm_non_nv_is_is_n_pls, f_xc_is_n_pls)
-// 	result2.SolveVec(f_brm_nv_is_is_n_pls, f_xc_is_n_pls)
-// 	result1.AddVec(&result1, f_brc_non_nv_is_n_pls)
-// 	result2.AddVec(&result2, f_brc_nv_is_n_pls)
-// 	return &result1, &result2
-// }
-
-// /*
-
-// Args:
-// 	f_brm_is_is_n_pls: ステップ n+1 における係数 f_BRM, W/K, [i, i]
-// 	f_xot_is_is_n_pls: ステップ n+1 における係数 f_XOT, -, [i, i]
-
-// Returns:
-// 	ステップ n+1 における係数 f_BRM,OT, W/K, [i, 1]
-
-// Notes:
-// 	式(2.18)
-// */
-// func get_f_brm_ot_is_is_n_pls(f_brm_is_is_n_pls mat.Matrix, f_xot_is_is_n_pls mat.Matrix) *mat.Dense {
-// 	// 積を求める
-// 	var f_brm_ot_is_is_n_pls mat.Dense
-// 	f_brm_ot_is_is_n_pls.Mul(f_brm_is_is_n_pls, f_xot_is_is_n_pls)
-
-// 	return &f_brm_ot_is_is_n_pls
-// }
 
 /*
 
