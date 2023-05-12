@@ -2,8 +2,6 @@ package main
 
 import (
 	"math"
-
-	"gonum.org/v1/gonum/mat"
 )
 
 /*
@@ -55,13 +53,13 @@ func get_x(p_v float64) float64 {
         ただし、省エネ基準の式は絶対湿度の単位として(g/kg(DA))を使用しているが、
         ここでは、kg/kg(DA)に統一した。
 */
-func get_p_v_r_is_n(x_r_is_n mat.Vector) []float64 {
+func get_p_v_r_is_n(x_r_is_n []float64) []float64 {
 	// 大気圧, Pa
 	f := _get_f()
 
-	p_v_r_is_n := make([]float64, x_r_is_n.Len())
-	for i := 0; i < x_r_is_n.Len(); i++ {
-		x := x_r_is_n.AtVec(i)
+	p_v_r_is_n := make([]float64, len(x_r_is_n))
+	for i := 0; i < len(x_r_is_n); i++ {
+		x := x_r_is_n[i]
 		p_v_r_is_n[i] = f * x / (x + 0.62198)
 	}
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"runtime/pprof"
 )
 
 /*
@@ -54,7 +56,7 @@ func calc(
 	gc_n := initialize_ground_conditions(sqc.bs.n_ground)
 
 	log.Println("助走計算（土壌のみ）")
-	_, N := scd.ac_demand_is_ns.Dims()
+	N := scd.ac_demand_is_ns.Len()
 
 	nn := N - n_step_run_up_build
 	for n := -n_step_run_up; n < -n_step_run_up_build; n++ {
@@ -81,6 +83,21 @@ func calc(
 	}
 
 	log.Println("本計算")
+
+	// ------- CPU Profile -------
+	f, err := os.Create("cpu.prof")
+	if err != nil {
+		log.Fatal("CPUプロファイル作成失敗： ", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatal("CPUプロファイルクローズ失敗： ", err)
+		}
+	}()
+	if err := pprof.StartCPUProfile(f); err != nil {
+		log.Fatal("CPUプロファイル開始失敗： ", err)
+	}
+	defer pprof.StopCPUProfile()
 
 	m := 1
 	for n := 0; n < n_step_main; n++ {

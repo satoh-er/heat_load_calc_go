@@ -3,7 +3,8 @@ package main
 import (
 	"math"
 
-	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/floats"
+	"gonum.org/v1/gonum/stat"
 )
 
 // 建物の階数（共同住宅の場合は住戸の階数）
@@ -148,10 +149,10 @@ Returns:
 	leakage air volume of rooms at step n, m3/s, [i,1]
 */
 func (self *Building) get_v_leak_is_n(
-	theta_r_is_n mat.Vector,
+	theta_r_is_n []float64,
 	theta_o_n float64,
 	v_rm_is []float64,
-) *mat.VecDense {
+) []float64 {
 
 	// average air temperature at step n which is weghted by room volumes, degree C
 	theta_average_r_n := _get_theta_average_r_n(theta_r_is_n, v_rm_is)
@@ -201,11 +202,12 @@ func _estimate_c_value(uaValue float64, structure Structure) float64 {
     Note:
         eq.2
 */
-func _get_v_leak_is_n(n_leak_n float64, v_rm_is []float64) *mat.VecDense {
-	var v_leak_is_n mat.VecDense
-	v_leak_is_n.ScaleVec(n_leak_n/3600, mat.NewVecDense(len(v_rm_is), v_rm_is))
+func _get_v_leak_is_n(n_leak_n float64, v_rm_is []float64) []float64 {
+	v_leak_is_n := make([]float64, len(v_rm_is))
 
-	return &v_leak_is_n
+	floats.ScaleTo(v_leak_is_n, n_leak_n/3600, v_rm_is)
+
+	return v_leak_is_n
 }
 
 /*
@@ -317,19 +319,6 @@ func _get_delta_theta_n(theta_average_r_n float64, theta_o_n float64) float64 {
     Note:
         eq.5
 */
-func _get_theta_average_r_n(theta_r_is_n mat.Vector, v_rm_is []float64) float64 {
-
-	// Get the length of the vector
-	length := theta_r_is_n.Len()
-
-	// Calculate the sum
-	sum := 0.0
-	for i := 0; i < length; i++ {
-		sum += theta_r_is_n.AtVec(i) * v_rm_is[i]
-	}
-
-	// Calculate the mean
-	mean := sum / float64(length)
-
-	return mean
+func _get_theta_average_r_n(theta_r_is_n []float64, v_rm_is []float64) float64 {
+	return stat.Mean(theta_r_is_n, v_rm_is)
 }

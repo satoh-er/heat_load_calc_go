@@ -29,18 +29,18 @@ const (
 type Operation struct {
 	_ac_method          ACMethod
 	_ac_config          []interface{}
-	_lower_target_is_ns *mat.Dense
-	_upper_target_is_ns *mat.Dense
-	_ac_demand_is_ns    *mat.Dense
+	_lower_target_is_ns *ScheduleData
+	_upper_target_is_ns *ScheduleData
+	_ac_demand_is_ns    *ScheduleData
 	_n_rm               int
 }
 
 func NewOperation(
 	ac_method ACMethod,
 	ac_config []interface{},
-	lower_target_is_ns *mat.Dense,
-	upper_target_is_ns *mat.Dense,
-	ac_demand_is_ns *mat.Dense,
+	lower_target_is_ns *ScheduleData,
+	upper_target_is_ns *ScheduleData,
+	ac_demand_is_ns *ScheduleData,
 	n_rm int,
 ) *Operation {
 	return &Operation{
@@ -55,8 +55,8 @@ func NewOperation(
 
 func make_operation(
 	d map[string]interface{},
-	ac_setting_is_ns mat.Matrix,
-	ac_demand_is_ns *mat.Dense,
+	ac_setting_is_ns *ScheduleData,
+	ac_demand_is_ns *ScheduleData,
 	n_rm int,
 ) *Operation {
 	ac_method := ACMethod(d["ac_method"].(string))
@@ -97,15 +97,13 @@ func make_operation(
 		}
 	}
 
-	r, c := ac_setting_is_ns.Dims()
-	lower_target_is_ns := mat.NewDense(r, c, nil)
-	upper_target_is_ns := mat.NewDense(r, c, nil)
+	r, c := ac_setting_is_ns.BatchSize, ac_setting_is_ns.Len()
 
-	for i := 0; i < r; i++ {
-		for j := 0; j < c; j++ {
-			lower_target_is_ns.Set(i, j, math.NaN())
-			upper_target_is_ns.Set(i, j, math.NaN())
-		}
+	lower_target_is_ns_data := make([]float64, len(ac_setting_is_ns.Data))
+	upper_target_is_ns_data := make([]float64, len(ac_setting_is_ns.Data))
+	for i := 0; i < len(ac_setting_is_ns.Data); i++ {
+		lower_target_is_ns_data[i] = math.NaN()
+		upper_target_is_ns_data[i] = math.NaN()
 	}
 
 	to_int := func(v interface{}) int {
@@ -125,14 +123,27 @@ func make_operation(
 		lower := conf["lower"].(float64)
 		upper := conf["upper"].(float64)
 
-		for i := 0; i < r; i++ {
-			for j := 0; j < c; j++ {
-				if int(ac_setting_is_ns.At(i, j)) == mode {
-					lower_target_is_ns.Set(i, j, lower)
-					upper_target_is_ns.Set(i, j, upper)
+		off := 0
+		for j := 0; j < c; j++ {
+			for i := 0; i < r; i++ {
+				batch := ac_setting_is_ns.Get(j)
+				if int(batch[i]) == mode {
+					lower_target_is_ns_data[off] = lower
+					upper_target_is_ns_data[off] = upper
 				}
+				off++
 			}
 		}
+	}
+
+	lower_target_is_ns := &ScheduleData{
+		Data:      lower_target_is_ns_data,
+		BatchSize: r,
+	}
+
+	upper_target_is_ns := &ScheduleData{
+		Data:      upper_target_is_ns_data,
+		BatchSize: r,
 	}
 
 	return NewOperation(
@@ -174,25 +185,25 @@ func (self *Operation) get_operation_mode_is_n(
 	met_is mat.Vector,
 	theta_r_ot_ntr_non_nv_is_n_pls *mat.VecDense,
 	theta_r_ot_ntr_nv_is_n_pls *mat.VecDense,
-	theta_r_ntr_non_nv_is_n_pls mat.Vector,
-	theta_r_ntr_nv_is_n_pls mat.Vector,
-	theta_mrt_hum_ntr_non_nv_is_n_pls mat.Vector,
-	theta_mrt_hum_ntr_nv_is_n_pls mat.Vector,
-	x_r_ntr_non_nv_is_n_pls *mat.VecDense,
-	x_r_ntr_nv_is_n_pls *mat.VecDense,
+	theta_r_ntr_non_nv_is_n_pls []float64,
+	theta_r_ntr_nv_is_n_pls []float64,
+	theta_mrt_hum_ntr_non_nv_is_n_pls []float64,
+	theta_mrt_hum_ntr_nv_is_n_pls []float64,
+	x_r_ntr_non_nv_is_n_pls []float64,
+	x_r_ntr_nv_is_n_pls []float64,
 ) []OperationMode {
 
-	upper_target_is_n := self._upper_target_is_ns.ColView(nn)
-	lower_target_is_n := self._lower_target_is_ns.ColView(nn)
-	ac_demand_is_n := self._ac_demand_is_ns.ColView(nn)
+	upper_target_is_n := self._upper_target_is_ns.Get(nn)
+	lower_target_is_n := self._lower_target_is_ns.Get(nn)
+	ac_demand_is_n := self._ac_demand_is_ns.Get(nn)
 
-	var x_cooling_is_n_pls, x_window_open_is_n_pls, x_heating_is_n_pls *mat.VecDense
+	var x_cooling_is_n_pls, x_window_open_is_n_pls, x_heating_is_n_pls []float64
 
 	switch self._ac_method {
 	case AIR_TEMPERATURE, SIMPLE, OT:
 		x_cooling_is_n_pls, x_window_open_is_n_pls, x_heating_is_n_pls = _get_operation_mode_simple_is_n(
-			theta_r_ot_ntr_non_nv_is_n_pls,
-			theta_r_ot_ntr_nv_is_n_pls,
+			theta_r_ot_ntr_non_nv_is_n_pls.RawVector().Data,
+			theta_r_ot_ntr_nv_is_n_pls.RawVector().Data,
 		)
 
 	case PMV:
@@ -214,13 +225,13 @@ func (self *Operation) get_operation_mode_is_n(
 
 	v := make([]OperationMode, self._n_rm)
 	for i := 0; i < self._n_rm; i++ {
-		is_op := ac_demand_is_n.AtVec(i) > 0.0
+		is_op := ac_demand_is_n[i] > 0.0
 		if is_op {
-			if x_cooling_is_n_pls.AtVec(i) > upper_target_is_n.AtVec(i) && x_window_open_is_n_pls.AtVec(i) > upper_target_is_n.AtVec(i) {
+			if x_cooling_is_n_pls[i] > upper_target_is_n[i] && x_window_open_is_n_pls[i] > upper_target_is_n[i] {
 				v[i] = COOLING
-			} else if x_cooling_is_n_pls.AtVec(i) > upper_target_is_n.AtVec(i) && x_window_open_is_n_pls.AtVec(i) <= upper_target_is_n.AtVec(i) {
+			} else if x_cooling_is_n_pls[i] > upper_target_is_n[i] && x_window_open_is_n_pls[i] <= upper_target_is_n[i] {
 				v[i] = STOP_OPEN
-			} else if x_heating_is_n_pls.AtVec(i) < lower_target_is_n.AtVec(i) {
+			} else if x_heating_is_n_pls[i] < lower_target_is_n[i] {
 				v[i] = HEATING
 			} else {
 				v[i] = STOP_CLOSE
@@ -235,17 +246,17 @@ func (self *Operation) get_operation_mode_is_n(
 
 func (self *Operation) get_theta_target_is_n(
 	operation_mode_is_n []OperationMode,
-	theta_r_is_n mat.Vector,
-	theta_mrt_hum_is_n mat.Vector,
-	x_r_ntr_is_n_pls mat.Vector,
+	theta_r_is_n []float64,
+	theta_mrt_hum_is_n []float64,
+	x_r_ntr_is_n_pls []float64,
 	n int,
 	nn int,
 	is_radiative_heating_is []bool,
 	is_radiative_cooling_is []bool,
 	met_is mat.Vector,
-) (mat.Vector, mat.Vector, mat.Vector, mat.Vector) {
-	lower_target_is_n := self._lower_target_is_ns.ColView(nn)
-	upper_target_is_n := self._upper_target_is_ns.ColView(nn)
+) ([]float64, []float64, mat.Vector, mat.Vector) {
+	lower_target_is_n := self._lower_target_is_ns.Get(nn)
+	upper_target_is_n := self._upper_target_is_ns.Get(nn)
 
 	// ステップnの室iにおけるClo値, [i, 1]
 	clo_is_n := get_clo_is_ns(operation_mode_is_n)
@@ -277,7 +288,7 @@ func (self *Operation) get_theta_target_is_n(
 		// ステップnにおける室iの水蒸気圧, Pa, [i, 1]
 		p_v_r_is_n := get_p_v_r_is_n(x_r_ntr_is_n_pls)
 
-		lower_target_is_n, upper_target_is_n := _get_theta_target(
+		theta_lower_target_is_n, theta_upper_target_is_n := _get_theta_target(
 			operation_mode_is_n,
 			p_v_r_is_n,
 			met_is,
@@ -287,7 +298,7 @@ func (self *Operation) get_theta_target_is_n(
 			clo_is_n,
 		)
 
-		return lower_target_is_n, upper_target_is_n, h_hum_c_is_n, h_hum_r_is_n
+		return theta_lower_target_is_n, theta_upper_target_is_n, h_hum_c_is_n, h_hum_r_is_n
 
 	default:
 		panic("invalid ac method")
@@ -367,16 +378,16 @@ func _get_theta_target(
 	operation_mode_is_n []OperationMode,
 	p_v_r_is_n []float64,
 	met_is mat.Vector,
-	lower_target_is_n mat.Vector,
-	upper_target_is_n mat.Vector,
+	lower_target_is_n []float64,
+	upper_target_is_n []float64,
 	h_hum_is_n mat.Vector,
 	clo_is_n []float64,
 ) (
-	mat.Vector,
-	mat.Vector,
+	[]float64,
+	[]float64,
 ) {
-	theta_lower_target_is_n := mat.NewVecDense(len(operation_mode_is_n), nil)
-	theta_upper_target_is_n := mat.NewVecDense(len(operation_mode_is_n), nil)
+	theta_lower_target_is_n := make([]float64, len(operation_mode_is_n))
+	theta_upper_target_is_n := make([]float64, len(operation_mode_is_n))
 	for i, om := range operation_mode_is_n {
 		if om == HEATING {
 			v := get_theta_ot_target(
@@ -384,18 +395,18 @@ func _get_theta_target(
 				p_v_r_is_n[i],
 				h_hum_is_n.AtVec(i),
 				met_is.AtVec(i),
-				lower_target_is_n.AtVec(i),
+				lower_target_is_n[i],
 			)
-			theta_lower_target_is_n.SetVec(i, v)
+			theta_lower_target_is_n[i] = v
 		} else if om == COOLING {
 			v := get_theta_ot_target(
 				clo_is_n[i],
 				p_v_r_is_n[i],
 				h_hum_is_n.AtVec(i),
 				met_is.AtVec(i),
-				lower_target_is_n.AtVec(i),
+				lower_target_is_n[i],
 			)
-			theta_upper_target_is_n.SetVec(i, v)
+			theta_upper_target_is_n[i] = v
 		} else {
 			//PASS
 		}
@@ -419,26 +430,26 @@ func get_v_hum_is_n(
 	operation_mode_is []OperationMode,
 	is_radiative_cooling_is []bool,
 	is_radiative_heating_is []bool,
-) *mat.VecDense {
+) []float64 {
 	// 在室者周りの風速はデフォルトで 0.0 m/s とおく
-	v_hum_is_n := mat.NewVecDense(len(operation_mode_is), nil)
+	v_hum_is_n := make([]float64, len(operation_mode_is))
 
-	for i := 0; i < v_hum_is_n.Len(); i++ {
+	for i := 0; i < len(v_hum_is_n); i++ {
 		if operation_mode_is[i] == HEATING {
 			if is_radiative_heating_is[i] {
 				// 対流暖房時の風速を 0.2 m/s とする
-				v_hum_is_n.SetVec(i, 0.2)
+				v_hum_is_n[i] = 0.2
 			} else {
 				// 放射暖房時の風速を 0.0 m/s とする
-				v_hum_is_n.SetVec(i, 0.0)
+				v_hum_is_n[i] = 0.0
 			}
 		} else if operation_mode_is[i] == COOLING {
 			if is_radiative_cooling_is[i] {
 				// 対流冷房時の風速を 0.2 m/s とする
-				v_hum_is_n.SetVec(i, 0.2)
+				v_hum_is_n[i] = 0.2
 			} else {
 				// 放射冷房時の風速を 0.0 m/s とする
-				v_hum_is_n.SetVec(i, 0.0)
+				v_hum_is_n[i] = 0.0
 			}
 		}
 
@@ -446,7 +457,7 @@ func get_v_hum_is_n(
 		// 対流暖房・冷房時と窓を開けている時は同時には起こらないことを期待しているが
 		// もし同時にTrueの場合は窓を開けている時の風速が優先される（上書きわれる）
 		if operation_mode_is[i] == STOP_OPEN {
-			v_hum_is_n.SetVec(i, 0.1)
+			v_hum_is_n[i] = 0.1
 		}
 
 		// 上記に当てはまらない場合の風速は 0.0 m/s のままである。
@@ -492,9 +503,9 @@ func get_clo_is_ns(operation_mode_is_n []OperationMode) []float64 {
 }
 
 func _get_operation_mode_simple_is_n(
-	theta_r_ot_ntr_non_nv_is_n_pls *mat.VecDense,
-	theta_r_ot_ntr_nv_is_n_pls *mat.VecDense,
-) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
+	theta_r_ot_ntr_non_nv_is_n_pls []float64,
+	theta_r_ot_ntr_nv_is_n_pls []float64,
+) ([]float64, []float64, []float64) {
 
 	x_cooling_is_n_pls := theta_r_ot_ntr_nv_is_n_pls
 	x_window_open_is_n_pls := theta_r_ot_ntr_non_nv_is_n_pls
@@ -508,13 +519,13 @@ func _get_operation_mode_pmv_is_n(
 	is_radiative_heating_is []bool,
 	method string,
 	met_is mat.Vector,
-	theta_r_ntr_non_nv_is_n_pls mat.Vector,
-	theta_r_ntr_nv_is_n_pls mat.Vector,
-	theta_mrt_hum_ntr_non_nv_is_n_pls mat.Vector,
-	theta_mrt_hum_ntr_nv_is_n_pls mat.Vector,
-	x_r_ntr_non_nv_is_n_pls *mat.VecDense,
-	x_r_ntr_nv_is_n_pls *mat.VecDense,
-) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
+	theta_r_ntr_non_nv_is_n_pls []float64,
+	theta_r_ntr_nv_is_n_pls []float64,
+	theta_mrt_hum_ntr_non_nv_is_n_pls []float64,
+	theta_mrt_hum_ntr_nv_is_n_pls []float64,
+	x_r_ntr_non_nv_is_n_pls []float64,
+	x_r_ntr_nv_is_n_pls []float64,
+) ([]float64, []float64, []float64) {
 	// ステップnにおける室iの水蒸気圧, Pa, [i, 1]
 	p_v_r_ntr_non_nv_is_n_pls := get_p_v_r_is_n(x_r_ntr_non_nv_is_n_pls)
 	p_v_r_ntr_nv_is_n_pls := get_p_v_r_is_n(x_r_ntr_nv_is_n_pls)
@@ -536,9 +547,9 @@ func _get_operation_mode_pmv_is_n(
 	////// 冷房判定用（窓開け時）のPMV計算
 
 	// 窓を開けている時の風速を 0.1 m/s とする
-	v_hum_window_open_is_n := mat.NewVecDense(len(is_radiative_cooling_is), nil)
+	v_hum_window_open_is_n := make([]float64, len(is_radiative_cooling_is))
 	for i := 0; i < len(is_radiative_cooling_is); i++ {
-		v_hum_window_open_is_n.SetVec(i, 0.1)
+		v_hum_window_open_is_n[i] = 0.1
 	}
 
 	// 冷房判定用（窓開け時）のPMV
@@ -555,12 +566,12 @@ func _get_operation_mode_pmv_is_n(
 	// 冷房判定用（窓閉め時）のPMV計算
 
 	// 冷房時の風速を対流冷房時0.2m/s・放射冷房時0.0m/sに設定する。
-	v_hum_cooling_is_n := mat.NewVecDense(len(is_radiative_cooling_is), nil)
+	v_hum_cooling_is_n := make([]float64, len(is_radiative_cooling_is))
 	for i := 0; i < len(is_radiative_cooling_is); i++ {
 		if is_radiative_cooling_is[i] {
-			v_hum_cooling_is_n.SetVec(i, 0.0)
+			v_hum_cooling_is_n[i] = 0.0
 		} else {
-			v_hum_cooling_is_n.SetVec(i, 0.2)
+			v_hum_cooling_is_n[i] = 0.2
 		}
 	}
 
@@ -578,12 +589,12 @@ func _get_operation_mode_pmv_is_n(
 	// 暖房判定用のPMV計算
 
 	// 暖房時の風速を対流暖房時0.2m/s・放射暖房時0.0m/sに設定する。
-	v_hum_heating_is_n := mat.NewVecDense(len(is_radiative_heating_is), nil)
+	v_hum_heating_is_n := make([]float64, len(is_radiative_heating_is))
 	for i := 0; i < len(is_radiative_heating_is); i++ {
 		if is_radiative_heating_is[i] {
-			v_hum_heating_is_n.SetVec(i, 0.0)
+			v_hum_heating_is_n[i] = 0.0
 		} else {
-			v_hum_heating_is_n.SetVec(i, 0.2)
+			v_hum_heating_is_n[i] = 0.2
 		}
 	}
 

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/floats"
 )
 
 /*
@@ -35,12 +35,12 @@ func (n NumberOfOccupants) String() string {
 }
 
 type Schedule struct {
-	q_gen_is_ns            *mat.Dense // ステップ　n　の室　i　における内部発熱, W, [i, n]
-	x_gen_is_ns            *mat.Dense // ステップ　n　の室　i　における人体発湿を除く内部発湿, kg/s, [i, n]
-	v_mec_vent_local_is_ns *mat.Dense // ステップ　n　の室　i　における局所換気量, m3/s, [i, n]
-	n_hum_is_ns            *mat.Dense // ステップ　n　の室　i　における在室人数, [i, n]
-	ac_demand_is_ns        *mat.Dense // ステップ　n　の室　i　における空調需要, [i, n]
-	ac_setting_is_ns       *mat.Dense // ステップ n の室 i における空調モード, [i, n]
+	q_gen_is_ns            *ScheduleData // ステップ　n　の室　i　における内部発熱, W, [i, n]
+	x_gen_is_ns            *ScheduleData // ステップ　n　の室　i　における人体発湿を除く内部発湿, kg/s, [i, n]
+	v_mec_vent_local_is_ns *ScheduleData // ステップ　n　の室　i　における局所換気量, m3/s, [i, n]
+	n_hum_is_ns            *ScheduleData // ステップ　n　の室　i　における在室人数, [i, n]
+	ac_demand_is_ns        *ScheduleData // ステップ　n　の室　i　における空調需要, [i, n]
+	ac_setting_is_ns       *ScheduleData // ステップ n の室 i における空調モード, [i, n]
 }
 
 /*
@@ -54,12 +54,12 @@ Args:
 	ac_setting_is_ns: ステップ n の室 i における空調モード, [i, n]
 */
 func NewSchedule(
-	q_gen_is_ns *mat.Dense,
-	x_gen_is_ns *mat.Dense,
-	v_mec_vent_local_is_ns *mat.Dense,
-	n_hum_is_ns *mat.Dense,
-	ac_demand_is_ns *mat.Dense,
-	ac_setting_is_ns *mat.Dense,
+	q_gen_is_ns *ScheduleData,
+	x_gen_is_ns *ScheduleData,
+	v_mec_vent_local_is_ns *ScheduleData,
+	n_hum_is_ns *ScheduleData,
+	ac_demand_is_ns *ScheduleData,
+	ac_setting_is_ns *ScheduleData,
 ) *Schedule {
 	return &Schedule{
 		q_gen_is_ns:            q_gen_is_ns,
@@ -92,7 +92,7 @@ func get_schedule(number_of_occupants NumberOfOccupants, s_name_is []string, a_f
 	// ステップ n の室 i における局所換気量, m3/s, [i, n]
 	// jsonファイルでは、 m3/h で示されているため、単位換算(m3/h -> m3/s)を行っている。
 	v_mec_vent_local_is_ns := _get_schedules(s_name_is, noo, n_p, "local_vent_amount", true, false)
-	v_mec_vent_local_is_ns.Scale(1.0/3600.0, v_mec_vent_local_is_ns)
+	floats.Scale(1.0/3600.0, v_mec_vent_local_is_ns.Data)
 
 	// ステップ n の室 i における機器発熱, W, [i, n]
 	q_gen_app_is_ns := _get_schedules(s_name_is, noo, n_p, "heat_generation_appliances", true, false)
@@ -103,7 +103,7 @@ func get_schedule(number_of_occupants NumberOfOccupants, s_name_is []string, a_f
 	// ステップ n の室 i における調理発湿, kg/s, [i, n]
 	// jsonファイルでは、g/h で示されているため、単位換算(g/h->kg/s)を行っている。
 	x_gen_ckg_is_ns := _get_schedules(s_name_is, noo, n_p, "vapor_generation_cooking", true, false)
-	x_gen_ckg_is_ns.Scale(1.0/1000.0/3600.0, x_gen_ckg_is_ns)
+	floats.Scale(1.0/1000.0/3600.0, x_gen_ckg_is_ns.Data)
 
 	// ステップ n の室 i における照明発熱, W/m2, [i, n]
 	// 単位面積あたりで示されていることに注意
@@ -120,11 +120,17 @@ func get_schedule(number_of_occupants NumberOfOccupants, s_name_is []string, a_f
 	ac_setting_is_ns := _get_schedules(s_name_is, noo, n_p, "is_temp_limit_set", false, false)
 
 	// ステップ n の室 i における人体発熱を除く内部発熱, W, [i, n]
-	r, c := q_gen_app_is_ns.Dims()
-	q_gen_is_ns := mat.NewDense(r, c, nil)
-	for i := 0; i < r; i++ {
-		for j := 0; j < c; j++ {
-			q_gen_is_ns.Set(i, j, q_gen_app_is_ns.At(i, j)+q_gen_ckg_is_ns.At(i, j)+q_gen_lght_is_ns.At(i, j)*a_floor_is[i])
+	n_rm := len(s_name_is)
+	n_step := len(q_gen_app_is_ns.Data) / n_rm
+	q_gen_is_ns := make([]float64, n_rm*n_step)
+	off := 0
+	for j := 0; j < n_step; j++ {
+		_q_gen_app_is_ns := q_gen_app_is_ns.Get(j)
+		_q_gen_ckg_is_ns := q_gen_ckg_is_ns.Get(j)
+		_q_gen_lght_is_ns := q_gen_lght_is_ns.Get(j)
+		for i := 0; i < n_rm; i++ {
+			q_gen_is_ns[off] = _q_gen_app_is_ns[i] + _q_gen_ckg_is_ns[i] + _q_gen_lght_is_ns[i]*a_floor_is[i]
+			off++
 		}
 	}
 
@@ -132,7 +138,7 @@ func get_schedule(number_of_occupants NumberOfOccupants, s_name_is []string, a_f
 	x_gen_is_ns := x_gen_ckg_is_ns
 
 	return NewSchedule(
-		q_gen_is_ns,
+		&ScheduleData{Data: q_gen_is_ns, BatchSize: n_rm},
 		x_gen_is_ns,
 		v_mec_vent_local_is_ns,
 		n_hum_is_ns,
@@ -149,16 +155,17 @@ Args:
 */
 func (self *Schedule) save_schedule(output_data_dir string) {
 
-	f := func(varname, filename string, data *mat.Dense) {
+	f := func(varname, filename string, data *ScheduleData) {
 		path := filepath.Join(output_data_dir, filename)
 		log.Printf("Save %s to `%s`", varname, path)
 
 		// float64の2次元スライスを文字列の2次元スライスに変換
-		r, c := data.Dims()
+		r, c := data.BatchSize, len(data.Data)/data.BatchSize
 		stringData := make([][]string, r)
 		for i := 0; i < r; i++ {
 			stringData[i] = make([]string, c)
-			for j, value := range data.RawRowView(i) {
+			for j := 0; j < c; j++ {
+				value := data.Get(j)[i]
 				stringData[i][j] = strconv.FormatFloat(value, 'f', -1, 64)
 			}
 		}
@@ -236,6 +243,19 @@ func _load_schedule(filename string) (map[string]interface{}, error) {
 	return jsonData, nil
 }
 
+type ScheduleData struct {
+	Data      []float64
+	BatchSize int
+}
+
+func (self *ScheduleData) Get(i int) []float64 {
+	return self.Data[i*self.BatchSize : (i+1)*self.BatchSize]
+}
+
+func (self *ScheduleData) Len() int {
+	return len(self.Data) / self.BatchSize
+}
+
 func _get_schedules(
 	s_name_is []string,
 	noo NumberOfOccupants,
@@ -243,7 +263,7 @@ func _get_schedules(
 	schedule_type string,
 	is_proportionable bool,
 	is_zero_one bool,
-) *mat.Dense {
+) *ScheduleData {
 	data := make([][]float64, len(s_name_is))
 	for i, schedule_name_i := range s_name_is {
 		data[i] = _get_schedule(
@@ -256,11 +276,22 @@ func _get_schedules(
 		)
 	}
 
-	ret := mat.NewDense(len(s_name_is), len(data[0]), nil)
-	for i := 0; i < len(s_name_is); i++ {
-		ret.SetRow(i, data[i])
+	n_rm := len(s_name_is)
+	n_step := len(data[0])
+
+	off := 0
+	flatdata := make([]float64, n_rm*n_step)
+	for i := 0; i < n_step; i++ {
+		for j := 0; j < n_rm; j++ {
+			flatdata[off] = data[j][i]
+			off++
+		}
 	}
-	return ret
+
+	return &ScheduleData{
+		Data:      flatdata,
+		BatchSize: n_rm,
+	}
 }
 
 /*

@@ -5,29 +5,29 @@ import (
 )
 
 func get_next_temp_and_load(
-	ac_demand_is_ns mat.Matrix,
-	brc_ot_is_n mat.Vector,
+	ac_demand_is_ns *ScheduleData,
+	brc_ot_is_n []float64,
 	brm_ot_is_is_n mat.Matrix,
 	brl_ot_is_is_n mat.Matrix,
-	theta_lower_target_is_n mat.Vector,
-	theta_upper_target_is_n mat.Vector,
+	theta_lower_target_is_n []float64,
+	theta_upper_target_is_n []float64,
 	operation_mode_is_n []OperationMode,
 	is_radiative_heating_is []bool,
 	is_radiative_cooling_is []bool,
 	lr_h_max_cap_is []float64,
 	lr_cs_max_cap_is []float64,
-	theta_natural_is_n mat.Vector,
+	theta_natural_is_n []float64,
 	n int,
 ) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
 
 	var nn int
 	if n < 0 {
-		_, c := ac_demand_is_ns.Dims()
+		c := ac_demand_is_ns.Len()
 		nn = n + c
 	} else {
 		nn = n
 	}
-	ac_demand_is_n := ac_demand_is_ns.(mat.ColViewer).ColView(nn)
+	ac_demand_is_n := ac_demand_is_ns.Get(nn)
 
 	roomShape := len(operation_mode_is_n)
 
@@ -68,12 +68,12 @@ func get_next_temp_and_load(
 	theta_set := mat.NewVecDense(roomShape, nil)
 	for i := range nt {
 		if operation_mode_is_n[i] == HEATING {
-			val := theta_lower_target_is_n.At(i, 0)*ac_demand_is_n.AtVec(i) +
-				theta_natural_is_n.At(i, 0)*(1.0-ac_demand_is_n.AtVec(i))
+			val := theta_lower_target_is_n[i]*ac_demand_is_n[i] +
+				theta_natural_is_n[i]*(1.0-ac_demand_is_n[i])
 			theta_set.SetVec(i, val)
 		} else if operation_mode_is_n[i] == COOLING {
-			val := theta_upper_target_is_n.At(i, 0)*ac_demand_is_n.AtVec(i) +
-				theta_natural_is_n.At(i, 0)*(1.0-ac_demand_is_n.AtVec(i))
+			val := theta_upper_target_is_n[i]*ac_demand_is_n[i] +
+				theta_natural_is_n[i]*(1.0-ac_demand_is_n[i])
 			theta_set.SetVec(i, val)
 		}
 	}
@@ -198,7 +198,7 @@ func get_load_and_temp(
 	kt mat.Matrix,
 	kc mat.Matrix,
 	kr mat.Matrix,
-	k mat.Vector,
+	k []float64,
 	nt []float64,
 	theta_set mat.MutableVector,
 	c []float64,
@@ -253,7 +253,7 @@ func get_load_and_temp(
 	x2_term3.MulVec(kr, lr_set)
 	x2.SubVec(&x2_term2, &x2_term1)
 	x2.AddVec(&x2, &x2_term3)
-	x2.AddVec(&x2, k)
+	x2.AddVec(&x2, mat.NewVecDense(len(k), k))
 
 	var v mat.VecDense
 	v.SolveVec(&x1, &x2)

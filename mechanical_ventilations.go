@@ -25,8 +25,8 @@ type MechanicalVentilation struct {
 type MechanicalVentilations struct {
 	_mechanical_ventilations []*MechanicalVentilation // 機械換気の要素
 	_n_rm                    int                      // 室数
-	v_vent_mec_general_is    *mat.VecDense            // 機械換気量, m3/h
 	v_vent_int_is_is         *mat.Dense               // 室間換気量, m3/h
+	v_vent_mec_general_is    []float64                // 室ごとの機械換気量, m3/h
 }
 
 func NewMechanicalVentilations(vs []interface{}, n_rm int) *MechanicalVentilations {
@@ -65,8 +65,8 @@ func NewMechanicalVentilations(vs []interface{}, n_rm int) *MechanicalVentilatio
 	Note:
 		eq. 1
 */
-func (mvs *MechanicalVentilations) get_v_vent_mec_general_is() *mat.VecDense {
-	v1 := mat.NewVecDense(mvs._n_rm, nil)
+func (mvs *MechanicalVentilations) get_v_vent_mec_general_is() []float64 {
+	v1 := make([]float64, mvs._n_rm)
 
 	for _, v := range mvs._mechanical_ventilations {
 		switch v.root_type {
@@ -80,7 +80,7 @@ func (mvs *MechanicalVentilations) get_v_vent_mec_general_is() *mat.VecDense {
 
 			// Add the ventilation amount to the room which ID equals to the top ID of mechanical ventilation list.
 			// Convert the unit from m3/h to m3/s.
-			v1.SetVec(r[0], v1.At(r[0], 0)+v.volume/3600)
+			v1[r[0]] += v.volume / 3600
 		case NATURAL_LOOP:
 			// PASS
 		default:
