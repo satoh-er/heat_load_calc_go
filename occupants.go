@@ -16,7 +16,6 @@ import (
         ステップnの室iにおける1人あたりの人体発湿, kg/s, [i, 1]
 */
 func get_x_hum_psn_is_n(theta_r_is_n mat.Vector) mat.Vector {
-	l_wtr := get_l_wtr()
 	q_hum_psn_is_n := get_q_hum_psn_is_n(theta_r_is_n)
 
 	x_hum_psn_is_n := mat.NewVecDense(theta_r_is_n.Len(), nil)

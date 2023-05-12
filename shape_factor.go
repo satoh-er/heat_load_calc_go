@@ -123,9 +123,6 @@ func _get_h_s_r_i_js(f_i_js []float64) []float64 {
 	// 境界間の放射熱伝達率を決定する際、平均放射温度を20℃固定値であるとして計算する。
 	const theta_mrt_K3 = (20.0 + 273.15) * (20.0 + 273.15) * (20.0 + 273.15)
 
-	eps := get_eps()
-	sgm := get_sgm()
-
 	h_s_r_i_js := make([]float64, len(f_i_js))
 	for j := range f_i_js {
 		h_s_r_i_js[j] = eps / (1.0 - eps*f_i_js[j]) * 4.0 * sgm * theta_mrt_K3

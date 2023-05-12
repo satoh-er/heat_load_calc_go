@@ -490,14 +490,14 @@ func (eq *Equipments) _func_rac(
 
 	var brmx_rac_is float64
 	if x_r_ntr_i_n_pls > x_rac_ex_srf_i_n_pls && q_s_i_n > 0.0 {
-		brmx_rac_is = get_rho_a() * v_rac_i_n * (1 - ce.bf)
+		brmx_rac_is = rho_a * v_rac_i_n * (1 - ce.bf)
 	} else {
 		brmx_rac_is = 0.0
 	}
 
 	var brcx_rac_is float64
 	if x_r_ntr_i_n_pls > x_rac_ex_srf_i_n_pls && q_s_i_n > 0.0 {
-		brcx_rac_is = get_rho_a() * v_rac_i_n * (1 - ce.bf) * x_rac_ex_srf_i_n_pls
+		brcx_rac_is = rho_a * v_rac_i_n * (1 - ce.bf) * x_rac_ex_srf_i_n_pls
 	} else {
 		brcx_rac_is = 0.0
 	}
@@ -542,7 +542,7 @@ func _get_theta_rac_ex_srf_i_n_pls(
 	theta_r_i_n_pls float64,
 	v_rac_i_n float64,
 ) float64 {
-	return theta_r_i_n_pls - q_s_i_n/(get_c_a()*get_rho_a()*v_rac_i_n*(1.0-bf_rac_i))
+	return theta_r_i_n_pls - q_s_i_n/(c_a*rho_a*v_rac_i_n*(1.0-bf_rac_i))
 }
 
 /*

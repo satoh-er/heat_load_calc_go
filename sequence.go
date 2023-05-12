@@ -660,7 +660,6 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	// TODO: q_sol_frt_is_ns の値は n+1 の値を使用するべき？
 	f_brc_non_nv_is_n_pls, f_brc_nv_is_n_pls := get_f_brc_is_n_pls(
 		self.bs.a_s_js,
-		get_c_a(),
 		self.rms.v_rm_is,
 		self.rms.c_sh_frt_is,
 		delta_t,
@@ -672,7 +671,6 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.scd.q_gen_is_ns.ColView(nn),
 		q_hum_is_n,
 		ss.q_sol_frt_is_ns.(mat.ColViewer).ColView(nn),
-		get_rho_a(),
 		c_n.theta_frt_is_n,
 		self.weather.theta_o_ns_plus[nn+1],
 		c_n.theta_r_is_n,
@@ -683,7 +681,6 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	// ステップ n+1 における係数 f_BRM, W/K, [i, i]
 	f_brm_non_nv_is_is_n_pls, f_brm_nv_is_is_n_pls := get_f_brm_is_is_n_pls(
 		self.bs.a_s_js,
-		get_c_a(),
 		self.rms.v_rm_is,
 		self.rms.c_sh_frt_is,
 		delta_t,
@@ -692,7 +689,6 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.bs.h_s_c_js,
 		self.bs.p_is_js,
 		self.bs.p_js_is,
-		get_rho_a(),
 		self.mvs.v_vent_int_is_is,
 		v_vent_out_non_nv_is_n,
 		self.rms.v_vent_ntr_set_is,
@@ -729,7 +725,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.rms.c_lh_frt_is,
 		delta_t,
 		self.rms.g_lh_frt_is,
-		get_rho_a(),
+		rho_a,
 		self.rms.v_rm_is,
 		c_n.x_frt_is_n,
 		self.scd.x_gen_is_ns.ColView(nn),
@@ -746,7 +742,6 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.rms.c_lh_frt_is,
 		delta_t,
 		self.rms.g_lh_frt_is,
-		get_rho_a(),
 		self.rms.v_rm_is,
 		self.mvs.v_vent_int_is_is,
 		v_vent_out_non_nv_is_n,
@@ -1290,7 +1285,6 @@ Args:
 	c_lh_frt_is: 室 i の備品等の湿気容量, kg/(kg/kg(DA)), [i, 1]
 	delta_t: 1ステップの時間間隔, s
 	g_lh_frt_is: 室 i の備品等と空気間の湿気コンダクタンス, kg/(s kg/kg(DA)), [i, 1]
-	rho_a: 空気の密度, kg/m3
 	v_rm_is: 室 i の容量, m3, [i, 1]
 	v_vent_int_is_is_n:　ステップ n から ステップ n+1 における室 i* から室 i への室間の空気移動量（流出換気量を含む）, m3/s
 	v_vent_out_is_n: ステップ n から ステップ n+1 における室 i の換気・すきま風・自然風の利用による外気の流入量, m3/s
@@ -1306,7 +1300,6 @@ func get_f_h_wgt_is_is_n(
 	c_lh_frt_is mat.Vector,
 	delta_t float64,
 	g_lh_frt_is mat.Vector,
-	rho_a float64,
 	v_rm_is []float64,
 	v_vent_int_is_is_n mat.Matrix,
 	v_vent_out_is_n mat.Vector,
@@ -2190,7 +2183,6 @@ func get_k_r_is_n(h_hum_c_is_n mat.Vector, h_hum_r_is_n mat.Vector) *mat.VecDens
 
 Args:
 	a_s_js: 境界 j の面積, m2, [j, 1]
-	c_a: 空気の比熱, J/(kg K)
 	v_rm_is: 室 i の容積, m3, [i, 1]
 	c_sh_frt_is: 室 i の備品等の熱容量, J/K, [i, 1]
 	delta_t: 1ステップの時間間隔, s
@@ -2199,7 +2191,6 @@ Args:
 	h_s_c_js: 境界 j の室内側対流熱伝達率, W/(m2 K), [j, 1]
 	p_is_js: 室 i と境界 j の接続に関する係数（境界 j が室 i に接している場合は 1 とし、それ以外の場合は 0 とする。）, -, [i, j]
 	p_js_is: 室 i と境界 j の接続に関する係数（境界 j が室 i に接している場合は 1 とし、それ以外の場合は 0 とする。）, -, [j, i]
-	rho_a: 空気の密度, kg/m3
 	v_vent_int_is_is_n: ステップ n から ステップ n+1 における室 i* から室 i への室間の空気移動量（流出換気量を含む）, m3/s
 	v_vent_out_is_n: ステップ n からステップ n+1 における室 i の換気・すきま風・自然風の利用による外気の流入量, m3/s
 
@@ -2211,7 +2202,6 @@ Notes:
 */
 func get_f_brm_is_is_n_pls(
 	a_s_js mat.Vector,
-	c_a float64,
 	v_rm_is []float64,
 	c_sh_frt_is mat.Vector,
 	delta_t float64,
@@ -2220,7 +2210,6 @@ func get_f_brm_is_is_n_pls(
 	h_s_c_js mat.Vector,
 	p_is_js mat.Matrix,
 	p_js_is mat.Matrix,
-	rho_a float64,
 	v_vent_int_is_is_n mat.Matrix,
 	v_vent_out_is_n mat.Vector,
 	v_vent_ntr_set_is []float64,
@@ -2283,7 +2272,6 @@ func get_f_brm_is_is_n_pls(
 
 Args:
 	a_s_js: 境界 j の面積, m2, [j, 1]
-	c_a: 空気の比熱, J/(kg K)
 	v_rm_is: 室容量, m3, [i, 1]
 	c_sh_frt_is: 室 i の備品等の熱容量, J/K, [i, 1]
 	delta_t: 1ステップの時間間隔, s
@@ -2295,7 +2283,6 @@ Args:
 	q_gen_is_n: ステップ n からステップ n+1 における室 i の人体発熱を除く内部発熱, W, [i, 1]
 	q_hum_is_n: ステップ n からステップ n+1 における室 i の人体発熱, W, [i, 1]
 	q_sol_frt_is_n: ステップ n からステップ n+1 における室 i に設置された備品等による透過日射吸収熱量時間平均値, W, [i, 1]
-	rho_a: 空気の密度, kg/m3
 	theta_frt_is_n: ステップ n における室 i の備品等の温度, degree C, [i, 1]
 	theta_o_n_pls: ステップ n+1 における外気温度, ℃
 	theta_r_is_n: ステップ n における室 i の温度, ℃
@@ -2310,7 +2297,6 @@ Notes:
 */
 func get_f_brc_is_n_pls(
 	a_s_js mat.Vector,
-	c_a float64,
 	v_rm_is []float64,
 	c_sh_frt_is mat.Vector,
 	delta_t float64,
@@ -2322,7 +2308,6 @@ func get_f_brc_is_n_pls(
 	q_gen_is_n mat.Vector,
 	q_hum_is_n mat.Vector,
 	q_sol_frt_is_n mat.Vector,
-	rho_a float64,
 	theta_frt_is_n mat.Vector,
 	theta_o_n_pls float64,
 	theta_r_is_n mat.Vector,
