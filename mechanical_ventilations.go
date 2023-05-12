@@ -127,27 +127,3 @@ func (mvs *MechanicalVentilations) get_v_vent_int_is_is() *mat.Dense {
 
 	return v2
 }
-
-/*
-func main() {
-	// Example usage
-	ventilationInputs := []VentilationInput{
-		{
-			ID:       1,
-			RootType: "type1",
-			Volume:   1000.0,
-			Root:     []int{0, 1},
-		},
-		{
-			ID:       2,
-			RootType: "type2",
-			Volume:   2000.0,
-			Root:     []int{1, 2},
-		},
-	}
-	nRm := 3
-	mvs := NewMechanicalVentilations(ventilationInputs, nRm)
-	fmt.Println(mvs.GetVVentMecGeneralIs())
-	fmt.Println(mvs.GetVVentIntIsIs())
-}
-*/
