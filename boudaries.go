@@ -129,10 +129,10 @@ type Boundaries struct {
 	simulation_u_value_js mat.Vector  // 境界jの計算で使用する熱貫流率, W/m2K, [j, 1]
 	a_s_js                mat.Vector  // 境界jの面積, m2, [j, 1]
 	phi_a0_js             mat.Vector  // 境界jの吸熱応答係数の初項, m2K/W, [j, 1]
-	phi_a1_js_ms          mat.Matrix  // 境界jの項別公比法における項mの吸熱応答係数の第一項 , m2K/W, [j, 12]
+	phi_a1_js_ms          [][]float64 // 境界jの項別公比法における項mの吸熱応答係数の第一項 , m2K/W, [j, 12]
 	phi_t0_js             mat.Vector  // 境界jの貫流応答係数の初項, [j, 1]
-	phi_t1_js_ms          mat.Matrix  // 境界jの項別公比法における項mの貫流応答係数の第一項, [j, 12]
-	r_js_ms               mat.Matrix  // 境界jの項別公比法における項mの公比, [j, 12]
+	phi_t1_js_ms          [][]float64 // 境界jの項別公比法における項mの貫流応答係数の第一項, [j, 12]
+	r_js_ms               [][]float64 // 境界jの項別公比法における項mの公比, [j, 12]
 	theta_o_eqv_js_ns     *mat.Dense  // ステップ n の境界 j における相当外気温度, ℃, [j, n+1]
 	q_trs_sol_js_ns       mat.Matrix  // ステップ n の室 i における窓の透過日射熱取得, W, [n]
 }
@@ -315,10 +315,11 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	bs.phi_a0_js = mat.NewVecDense(len(rfa0), rfa0)
 
 	// 境界jの項別公比法における項mの吸熱応答係数の第一項 , m2K/W, [j, 12]
-	rfa1 := mat.NewDense(self.n_b, 12, nil)
+	rfa1 := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
+		rfa1[i] = make([]float64, 12)
 		for j := 0; j < 12; j++ {
-			rfa1.Set(i, j, self.bss[i].rf.rfa1().AtVec(j))
+			rfa1[i][j] = self.bss[i].rf.rfa1().AtVec(j)
 		}
 	}
 	bs.phi_a1_js_ms = rfa1
@@ -331,19 +332,21 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	bs.phi_t0_js = mat.NewVecDense(len(rft0), rft0)
 
 	// 境界jの項別公比法における項mの貫流応答係数の第一項, [j, 12]
-	rft1 := mat.NewDense(self.n_b, 12, nil)
+	rft1 := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
+		rft1[i] = make([]float64, 12)
 		for j := 0; j < 12; j++ {
-			rft1.Set(i, j, self.bss[i].rf.rft1().AtVec(j))
+			rft1[i][j] = self.bss[i].rf.rft1().AtVec(j)
 		}
 	}
 	bs.phi_t1_js_ms = rft1
 
 	// 境界jの項別公比法における項mの公比, [j, 12]
-	row := mat.NewDense(self.n_b, 12, nil)
+	row := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
+		row[i] = make([]float64, 12)
 		for j := 0; j < 12; j++ {
-			row.Set(i, j, self.bss[i].rf.row().AtVec(j))
+			row[i][j] = self.bss[i].rf.row().AtVec(j)
 		}
 	}
 	bs.r_js_ms = row

@@ -57,7 +57,7 @@ type Sequence struct {
 		ステップ n　からステップ n+1 における係数 f_l_cl_wgt, kg/s(kg/kg(DA)), [i, i]
 		ステップ n　からステップ n+1 における係数 f_l_cl_cst, kg/s, [i, 1]
 	*/
-	get_f_l_cl          func(mat.Vector, []float64, []float64) (*mat.VecDense, *mat.Dense)
+	get_f_l_cl          func([]float64, []float64, []float64) (*mat.VecDense, *mat.Dense)
 	pre_calc_parameters *PreCalcParameters
 }
 
@@ -1104,33 +1104,37 @@ func _run_tick_ground(self *Sequence, pp *PreCalcParameters, gc_n *GroundConditi
 		h_i_js.SetVec(i, self.bs.h_s_r_js.AtVec(gidx)+self.bs.h_s_c_js.AtVec(gidx))
 	}
 
-	_, c := self.bs.phi_a1_js_ms.Dims()
-	theta_dsh_srf_a_js_ms_npls := mat.NewDense(len(ground_idx), c, nil)
+	theta_dsh_srf_a_js_ms_npls := make([][]float64, len(ground_idx))
 	for j := 0; j < len(ground_idx); j++ {
 		gidx := ground_idx[j]
-		for i := 0; i < c; i++ {
-			theta_dsh_srf_a_js_ms_npls.Set(j, i,
-				self.bs.phi_a1_js_ms.At(gidx, i)*gc_n.q_srf_js_n.AtVec(j)+
-					self.bs.r_js_ms.At(gidx, i)*gc_n.theta_dsh_srf_a_js_ms_n.At(0, i))
+		r := self.bs.r_js_ms[gidx]
+		phi_a1 := self.bs.phi_a1_js_ms[gidx]
+		theta_dsh_srf_a_js_ms_npls[j] = make([]float64, 12)
+		for i := 0; i < 12; i++ {
+			theta_dsh_srf_a_js_ms_npls[j][i] = phi_a1[i]*gc_n.q_srf_js_n.AtVec(j) +
+				r[i]*gc_n.theta_dsh_srf_a_js_ms_n[j][i]
 		}
 	}
 
-	theta_dsh_srf_t_js_ms_npls := mat.NewDense(len(ground_idx), c, nil)
+	theta_dsh_srf_t_js_ms_npls := make([][]float64, len(ground_idx))
 	for j := 0; j < len(ground_idx); j++ {
 		gidx := ground_idx[j]
-		for i := 0; i < c; i++ {
-			theta_dsh_srf_t_js_ms_npls.Set(j, i,
-				self.bs.phi_t1_js_ms.At(gidx, i)*self.bs.k_eo_js.AtVec(gidx)*self.bs.theta_o_eqv_js_ns.At(gidx, nn)+
-					self.bs.r_js_ms.At(gidx, i)*gc_n.theta_dsh_srf_t_js_ms_n.At(j, i))
+		phi_t1 := self.bs.phi_t1_js_ms[gidx]
+		r := self.bs.r_js_ms[gidx]
+		theta_dsh_srf_t_js_ms_npls[j] = make([]float64, 12)
+		for i := 0; i < 12; i++ {
+			theta_dsh_srf_t_js_ms_npls[j][i] =
+				phi_t1[i]*self.bs.k_eo_js.AtVec(gidx)*self.bs.theta_o_eqv_js_ns.At(gidx, nn) +
+					r[i]*gc_n.theta_dsh_srf_t_js_ms_n[j][i]
 		}
 	}
 
 	theta_s_js_npls := mat.NewVecDense(len(ground_idx), nil)
 	for j := 0; j < len(ground_idx); j++ {
 		var sum_a, sum_t float64
-		for i := 0; i < c; i++ {
-			sum_a += theta_dsh_srf_a_js_ms_npls.At(j, i)
-			sum_t += theta_dsh_srf_t_js_ms_npls.At(j, i)
+		for i := 0; i < 12; i++ {
+			sum_a += theta_dsh_srf_a_js_ms_npls[j][i]
+			sum_t += theta_dsh_srf_t_js_ms_npls[j][i]
 		}
 
 		gidx := ground_idx[j]
@@ -1492,7 +1496,7 @@ func get_theta_ei_js_n_pls(
 	f_flr_js_is_n mat.Matrix,
 	h_s_c_js mat.Vector,
 	h_s_r_js mat.Vector,
-	l_rs_is_n mat.Vector,
+	l_rs_is_n []float64,
 	p_js_is mat.Matrix,
 	q_s_sol_js_n_pls mat.Vector,
 	theta_r_is_n_pls []float64,
@@ -1512,8 +1516,8 @@ func get_theta_ei_js_n_pls(
 
 	// Python: np.dot(f_flr_js_is_n, (1.0-beta_is_n)*l_rs_is_n)/a_s_js
 	var temp4, temp5 mat.VecDense
-	temp4.MulElemVec(beta_is_n, l_rs_is_n)
-	temp4.SubVec(l_rs_is_n, &temp4)
+	temp4.MulElemVec(beta_is_n, mat.NewVecDense(len(l_rs_is_n), l_rs_is_n))
+	temp4.SubVec(mat.NewVecDense(len(l_rs_is_n), l_rs_is_n), &temp4)
 	temp5.MulVec(f_flr_js_is_n, &temp4)
 	temp5.DivElemVec(&temp5, a_s_js)
 
@@ -1631,12 +1635,12 @@ func get_theta_s_js_n_pls(
 	f_wsc_js_n_pls mat.Vector,
 	f_wsr_js_is mat.Matrix,
 	f_wsv_js_n_pls mat.Vector,
-	l_rs_is_n mat.Vector,
+	l_rs_is_n []float64,
 	theta_r_is_n_pls []float64,
 ) *mat.VecDense {
 	var temp1, temp2 mat.VecDense
 	temp1.MulVec(f_wsr_js_is, mat.NewVecDense(len(theta_r_is_n_pls), theta_r_is_n_pls)) //np.dot(f_wsr_js_is, theta_r_is_n_pls)
-	temp2.MulVec(f_wsb_js_is_n_pls, l_rs_is_n)                                          //np.dot(f_wsb_js_is_n_pls, l_rs_is_n)
+	temp2.MulVec(f_wsb_js_is_n_pls, mat.NewVecDense(len(l_rs_is_n), l_rs_is_n))         //np.dot(f_wsb_js_is_n_pls, l_rs_is_n)
 
 	temp1.AddVec(&temp1, f_wsc_js_n_pls)
 	temp1.AddVec(&temp1, f_wsv_js_n_pls)
@@ -1665,16 +1669,16 @@ func get_theta_r_is_n_pls(
 	f_xc_is_n_pls mat.Vector,
 	f_xlr_is_is_n_pls mat.Matrix,
 	f_xot_is_is_n_pls mat.Matrix,
-	l_rs_is_n mat.Vector,
-	theta_ot_is_n_pls mat.Vector,
+	l_rs_is_n []float64,
+	theta_ot_is_n_pls []float64,
 ) []float64 {
 	// Python: np.dot(f_xot_is_is_n_pls, theta_ot_is_n_pls)
 	var temp1 mat.VecDense
-	temp1.MulVec(f_xot_is_is_n_pls, theta_ot_is_n_pls)
+	temp1.MulVec(f_xot_is_is_n_pls, mat.NewVecDense(len(theta_ot_is_n_pls), theta_ot_is_n_pls))
 
 	// Python: np.dot(f_xlr_is_is_n_pls, l_rs_is_n)
 	var temp2 mat.VecDense
-	temp2.MulVec(f_xlr_is_is_n_pls, l_rs_is_n)
+	temp2.MulVec(f_xlr_is_is_n_pls, mat.NewVecDense(len(l_rs_is_n), l_rs_is_n))
 
 	// Python: temp1 - temp2 - f_xc_is_n_pls
 	var temp3 mat.VecDense
@@ -1812,6 +1816,7 @@ func get_f_wsb_js_is_n_pls(
 	f_flb_js_is_n_pls mat.Matrix,
 	f_ax_js_js mat.Matrix,
 ) *mat.Dense {
+
 	var result mat.Dense
 	result.Solve(f_ax_js_js, f_flb_js_is_n_pls)
 
@@ -2448,11 +2453,11 @@ Notes:
 	式(2.27)
 */
 func get_f_wsv_js_n_pls(
-	f_cvl_js_n_pls mat.Vector,
+	f_cvl_js_n_pls []float64,
 	f_ax_js_js mat.Matrix,
 ) *mat.VecDense {
 	var result mat.VecDense
-	result.SolveVec(f_ax_js_js, f_cvl_js_n_pls)
+	result.SolveVec(f_ax_js_js, mat.NewVecDense(len(f_cvl_js_n_pls), f_cvl_js_n_pls))
 
 	return &result
 }
@@ -2469,21 +2474,19 @@ Notes:
 	式(2.28)
 */
 func get_f_cvl_js_n_pls(
-	theta_dsh_s_a_js_ms_n_pls mat.Matrix,
-	theta_dsh_s_t_js_ms_n_pls mat.Matrix,
-) *mat.VecDense {
+	theta_dsh_s_a_js_ms_n_pls [][]float64,
+	theta_dsh_s_t_js_ms_n_pls [][]float64,
+) []float64 {
 	// Pythonコード: np.sum(theta_dsh_s_t_js_ms_n_pls + theta_dsh_s_a_js_ms_n_pls, axis=1, keepdims=True)
-	var sum mat.Dense
-	sum.Add(theta_dsh_s_t_js_ms_n_pls, theta_dsh_s_a_js_ms_n_pls)
-
-	r, c := sum.Dims()
-	result := mat.NewVecDense(r, nil)
-	for i := 0; i < r; i++ {
+	l := len(theta_dsh_s_t_js_ms_n_pls)
+	result := make([]float64, l)
+	for i := 0; i < l; i++ {
 		rowSum := 0.0
+		c := len(theta_dsh_s_t_js_ms_n_pls[i])
 		for j := 0; j < c; j++ {
-			rowSum += sum.At(i, j)
+			rowSum += theta_dsh_s_t_js_ms_n_pls[i][j] + theta_dsh_s_a_js_ms_n_pls[i][j]
 		}
-		result.SetVec(i, rowSum)
+		result[i] = rowSum
 	}
 
 	return result
@@ -2504,31 +2507,19 @@ Notes:
 	式(2.29)
 */
 func get_theta_dsh_s_a_js_ms_n_pls(
-	phi_a1_js_ms mat.Matrix,
+	phi_a1_js_ms [][]float64,
 	q_s_js_n []float64,
-	r_js_ms mat.Matrix,
-	theta_dsh_srf_a_js_ms_n mat.Matrix,
-) *mat.Dense {
-	// phi_a1_js_ms*q_s_js_n
-	// NOTE: ブロードキャストがないのでループで書いている
-	var tmp1 mat.Dense
-	tmp1.CloneFrom(phi_a1_js_ms)
-	rows, cols := tmp1.Dims()
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			tmp1.Set(i, j, tmp1.At(i, j)*q_s_js_n[i])
+	r_js_ms [][]float64,
+	theta_dsh_srf_a_js_ms_n [][]float64,
+) [][]float64 {
+	result := make([][]float64, len(phi_a1_js_ms))
+	for i := 0; i < len(phi_a1_js_ms); i++ {
+		result[i] = make([]float64, len(phi_a1_js_ms[i]))
+		for j := 0; j < len(phi_a1_js_ms[i]); j++ {
+			result[i][j] = phi_a1_js_ms[i][j]*q_s_js_n[i] + r_js_ms[i][j]*theta_dsh_srf_a_js_ms_n[i][j]
 		}
 	}
-
-	// r_js_ms*theta_dsh_srf_a_js_ms_n
-	var tmp2 mat.Dense
-	tmp2.MulElem(r_js_ms, theta_dsh_srf_a_js_ms_n)
-
-	// phi_a1_js_ms * q_s_js_n + r_js_ms * theta_dsh_srf_a_js_ms_n
-	var result mat.Dense
-	result.Add(&tmp1, &tmp2)
-
-	return &result
+	return result
 }
 
 /*
@@ -2546,31 +2537,20 @@ Notes:
 	式(2.30)
 */
 func get_theta_dsh_s_t_js_ms_n_pls(
-	phi_t1_js_ms mat.Matrix,
-	r_js_ms mat.Matrix,
-	theta_dsh_srf_t_js_ms_n mat.Matrix,
+	phi_t1_js_ms [][]float64,
+	r_js_ms [][]float64,
+	theta_dsh_srf_t_js_ms_n [][]float64,
 	theta_rear_js_n mat.Vector,
-) *mat.Dense {
-	// phi_t1_js_ms*q_s_js_n
-	// NOTE: ブロードキャストがないのでループで書いている
-	var tmp1 mat.Dense
-	tmp1.CloneFrom(phi_t1_js_ms)
-	rows, cols := tmp1.Dims()
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			tmp1.Set(i, j, tmp1.At(i, j)*theta_rear_js_n.AtVec(i))
+) [][]float64 {
+	result := make([][]float64, len(phi_t1_js_ms))
+	for j := 0; j < len(phi_t1_js_ms); j++ {
+		result[j] = make([]float64, len(phi_t1_js_ms[j]))
+		for m := 0; m < len(phi_t1_js_ms[j]); m++ {
+			result[j][m] = phi_t1_js_ms[j][m]*theta_rear_js_n.AtVec(j) + r_js_ms[j][m]*theta_dsh_srf_t_js_ms_n[j][m]
 		}
 	}
 
-	// r_js_ms*theta_dsh_srf_t_js_ms_n
-	var tmp2 mat.Dense
-	tmp2.MulElem(r_js_ms, theta_dsh_srf_t_js_ms_n)
-
-	// phi_t1_js_ms*theta_rear_js_n + r_js_ms*theta_dsh_srf_t_js_ms_n
-	var result mat.Dense
-	result.Add(&tmp1, &tmp2)
-
-	return &result
+	return result
 }
 
 /*

@@ -388,7 +388,7 @@ func _get_f_flr_eqp_js_ks(es []interface{}, n_b int) *mat.Dense {
 	return f_flr_eqp_js_ks
 }
 
-func (eq *Equipments) make_get_f_l_cl_funcs() func(mat.Vector, []float64, []float64) (*mat.VecDense, *mat.Dense) {
+func (eq *Equipments) make_get_f_l_cl_funcs() func([]float64, []float64, []float64) (*mat.VecDense, *mat.Dense) {
 	/*
 		Args:
 			l_cs_is_n: ステップ n からステップ n+1 における室 i の暖冷房設備の顕熱処理量（暖房を正・冷房を負とする）, W, [i, 1]
@@ -401,7 +401,7 @@ func (eq *Equipments) make_get_f_l_cl_funcs() func(mat.Vector, []float64, []floa
 				ステップ n　からステップ n+1 における係数 f_l_cl_cst, kg/s, [i, 1]
 	*/
 	get_f_l_cl := func(
-		l_cs_is_n mat.Vector,
+		l_cs_is_n []float64,
 		theta_r_is_n_pls []float64,
 		x_r_ntr_is_n_pls []float64,
 	) (*mat.VecDense, *mat.Dense) {
@@ -433,7 +433,7 @@ func (eq *Equipments) make_get_f_l_cl_funcs() func(mat.Vector, []float64, []floa
 }
 
 func (eq *Equipments) _get_ls_a_ls_b(
-	l_cs_is_n mat.Vector,
+	l_cs_is_n []float64,
 	theta_r_is_n_pls []float64,
 	x_r_ntr_is_n_pls []float64,
 	ce interface{},
@@ -455,7 +455,7 @@ func (eq *Equipments) _get_ls_a_ls_b(
 }
 
 func (eq *Equipments) _func_rac(
-	l_cs_is_n mat.Vector,
+	l_cs_is_n []float64,
 	theta_r_is_n_pls []float64,
 	x_r_ntr_is_n_pls []float64,
 	ce CoolingEquipmentRAC,
@@ -467,7 +467,7 @@ func (eq *Equipments) _func_rac(
 	// Lcsは加熱が正で表される。
 	// 加熱時は除湿しない。
 	// 以下の取り扱いを簡単にするため（冷房負荷を正とするため）、正負を反転させる
-	q_s_i_n := -l_cs_is_n.AtVec(ce.room_id)
+	q_s_i_n := -l_cs_is_n[ce.room_id]
 	theta_r_i_n_pls := theta_r_is_n_pls[ce.room_id]
 	x_r_ntr_i_n_pls := x_r_ntr_is_n_pls[ce.room_id]
 

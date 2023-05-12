@@ -9,8 +9,8 @@ type Conditions struct {
 	theta_r_is_n            []float64       //ステップnにおける室iの空気温度, degree C, [i, 1]
 	theta_mrt_hum_is_n      []float64       // ステップnにおける室iの在室者の平均放射温度, degree C, [i, 1]
 	x_r_is_n                []float64       // ステップnにおける室iの絶対湿度, kg/kgDA, [i, 1]
-	theta_dsh_srf_a_js_ms_n *mat.Dense      // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
-	theta_dsh_srf_t_js_ms_n *mat.Dense      // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
+	theta_dsh_srf_a_js_ms_n [][]float64     // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
+	theta_dsh_srf_t_js_ms_n [][]float64     // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
 	q_s_js_n                []float64       // ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 	theta_frt_is_n          []float64       // ステップnの室iにおける家具の温度, degree C, [i, 1]
 	x_frt_is_n              []float64       // ステップnの室iにおける家具の絶対湿度, kg/kgDA, [i, 1]
@@ -22,8 +22,8 @@ func NewConditions(
 	theta_r_is_n []float64,
 	theta_mrt_hum_is_n []float64,
 	x_r_is_n []float64,
-	theta_dsh_srf_a_js_ms_n *mat.Dense,
-	theta_dsh_srf_t_js_ms_n *mat.Dense,
+	theta_dsh_srf_a_js_ms_n [][]float64,
+	theta_dsh_srf_t_js_ms_n [][]float64,
 	q_s_js_n []float64,
 	theta_frt_is_n []float64,
 	x_frt_is_n []float64,
@@ -44,8 +44,8 @@ func NewConditions(
 }
 
 type GroundConditions struct {
-	theta_dsh_srf_a_js_ms_n *mat.Dense    // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
-	theta_dsh_srf_t_js_ms_n *mat.Dense    // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
+	theta_dsh_srf_a_js_ms_n [][]float64   // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
+	theta_dsh_srf_t_js_ms_n [][]float64   // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
 	q_srf_js_n              *mat.VecDense // ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 }
 
@@ -87,11 +87,17 @@ func initialize_conditions(n_spaces, n_bdries int) *Conditions {
 
 	// ステップnの統合された境界j*における指数項mの吸熱応答の項別成分, degree C, [j*, 12]
 	// 初期値を0.0℃とする。
-	theta_dsh_srf_a_js_ms_n0 := mat.NewDense(total_number_of_bdry, 12, nil)
+	theta_dsh_srf_a_js_ms_n0 := make([][]float64, total_number_of_bdry)
+	for i := 0; i < total_number_of_bdry; i++ {
+		theta_dsh_srf_a_js_ms_n0[i] = make([]float64, 12)
+	}
 
 	// ステップnの統合された境界j*における指数項mの貫流応答の項別成分, degree C, [j*, 12]
 	// 初期値を0.0℃とする。
-	theta_dsh_srf_t_js_ms_n0 := mat.NewDense(total_number_of_bdry, 12, nil)
+	theta_dsh_srf_t_js_ms_n0 := make([][]float64, total_number_of_bdry)
+	for i := 0; i < total_number_of_bdry; i++ {
+		theta_dsh_srf_t_js_ms_n0[i] = make([]float64, 12)
+	}
 
 	// ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 	// 初期値を0.0W/m2とする。
@@ -139,11 +145,17 @@ func initialize_ground_conditions(n_grounds int) *GroundConditions {
 
 	// ステップnの統合された境界j*における指数項mの吸熱応答の項別成分, degree C, [j*, 12]
 	// 初期値を0.0℃とする。
-	theta_dsh_srf_a_js_ms_n0 := mat.NewDense(n_grounds, 12, nil)
+	theta_dsh_srf_a_js_ms_n0 := make([][]float64, n_grounds)
+	for i := 0; i < n_grounds; i++ {
+		theta_dsh_srf_a_js_ms_n0[i] = make([]float64, 12)
+	}
 
 	// ステップnの統合された境界j*における指数項mの貫流応答の項別成分, degree C, [j*, 12]
 	// 初期値を0.0℃とする。
-	theta_dsh_srf_t_js_ms_n0 := mat.NewDense(n_grounds, 12, nil)
+	theta_dsh_srf_t_js_ms_n0 := make([][]float64, n_grounds)
+	for i := 0; i < n_grounds; i++ {
+		theta_dsh_srf_t_js_ms_n0[i] = make([]float64, 12)
+	}
 
 	// ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 	// 初期値を0.0W/m2とする。
@@ -160,7 +172,7 @@ func update_conditions_by_ground_conditions(is_ground []bool, c *Conditions, gc 
 	gidx := 0
 	for i, ground := range is_ground {
 		if ground {
-			c.theta_dsh_srf_a_js_ms_n.SetRow(i, gc.theta_dsh_srf_a_js_ms_n.RawRowView(gidx))
+			copy(c.theta_dsh_srf_a_js_ms_n[i], gc.theta_dsh_srf_a_js_ms_n[gidx])
 			c.q_s_js_n[i] = gc.q_srf_js_n.AtVec(gidx)
 			gidx++
 		}

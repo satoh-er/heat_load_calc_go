@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/floats"
 )
 
 /*
@@ -28,15 +28,9 @@ func get_pmv_is_n(
 	theta_mrt_is_n []float64,
 	clo_is_n []float64,
 	v_hum_is_n []float64,
-	met_is mat.Vector,
+	met_is []float64,
 	method string,
 ) []float64 {
-	// 室 i の在室者の代謝量（人体内部発熱量）, W/m2
-	m_is := make([]float64, met_is.Len())
-	for i := 0; i < len(m_is); i++ {
-		m_is[i] = _get_m_is(met_is.AtVec(i))
-	}
-
 	// (1) ステップ n における室 i の在室者周りの対流熱伝達率, W/m2K, [i, 1]
 	// (2) ステップ n における室 i の在室者周りの放射熱伝達率, W/m2K, [i, 1]
 	// (3) ステップ n における室 i の在室者周りの総合熱伝達率, W/m2K, [i, 1]
@@ -54,7 +48,7 @@ func get_pmv_is_n(
 
 	for i := 0; i < l; i++ {
 		// ステップnにおける室iの在室者の作用温度, degree C, [i, 1]
-		theta_ot := (h_hum_r_is_n.AtVec(i)*theta_mrt_is_n[i] + h_hum_c_is_n.AtVec(i)*theta_r_is_n[i]) / h_hum_is_n.AtVec(i)
+		theta_ot := (h_hum_r_is_n[i]*theta_mrt_is_n[i] + h_hum_c_is_n[i]*theta_r_is_n[i]) / h_hum_is_n[i]
 
 		// ステップ n における室 i の在室者の着衣抵抗, m2K/W, [i, 1]
 		i_cl := _get_i_cl_is_n(clo_is_n[i])
@@ -63,7 +57,7 @@ func get_pmv_is_n(
 		f_cl := _get_f_cl_is_n(i_cl)
 
 		// ステップnにおける室iの在室者の厚着時のPMV, [i, 1]
-		pmv_is_n[i] = _get_pmv_is_n(theta_r_is_n[i], p_a_is_n[i], h_hum_is_n.AtVec(i), theta_ot, i_cl, f_cl, met_is.AtVec(i))
+		pmv_is_n[i] = _get_pmv_is_n(theta_r_is_n[i], p_a_is_n[i], h_hum_is_n[i], theta_ot, i_cl, f_cl, met_is[i])
 	}
 
 	return pmv_is_n
@@ -144,8 +138,8 @@ func get_h_hum(
 	clo_is_n []float64,
 	v_hum_is_n []float64,
 	method string,
-	met_is mat.Vector,
-) (mat.Vector, mat.Vector, mat.Vector) {
+	met_is []float64,
+) ([]float64, []float64, []float64) {
 	h_hum_c_is_n, h_hum_r_is_n := _get_h_hum_c_is_n_and_h_hum_r_is_n(
 		theta_mrt_is_n,
 		theta_r_is_n,
@@ -171,10 +165,10 @@ Returns:
 Note:
 	eq.(4)
 */
-func _get_h_hum_is_n(h_hum_c_is_n mat.Vector, h_hum_r_is_n mat.Vector) mat.Vector {
-	var h_hum_is_n mat.VecDense
-	h_hum_is_n.AddVec(h_hum_c_is_n, h_hum_r_is_n)
-	return &h_hum_is_n
+func _get_h_hum_is_n(h_hum_c_is_n []float64, h_hum_r_is_n []float64) []float64 {
+	h_hum_is_n := make([]float64, len(h_hum_c_is_n))
+	floats.AddTo(h_hum_is_n, h_hum_c_is_n, h_hum_r_is_n)
+	return h_hum_is_n
 }
 
 /*
@@ -198,21 +192,14 @@ func _get_h_hum_c_is_n_and_h_hum_r_is_n(
 	clo_is_n []float64,
 	v_hum_is_n []float64,
 	method string,
-	met_is mat.Vector,
-) (*mat.VecDense, *mat.VecDense) {
-	// 室 i の在室者の代謝量（人体内部発熱量）, W/m2
-	m_is := make([]float64, met_is.Len())
-	for i := 0; i < met_is.Len(); i++ {
-		m_is[i] = _get_m_is(met_is.AtVec(i))
-	}
-
+	met_is []float64,
+) ([]float64, []float64) {
 	//NOTE: fsolveはFortranのMINPACK相当だが、Goでは相当の実装が見当たらない
 	//ref: https://github.com/fortran-lang/minpack
 
 	l := len(theta_r_is_n)
-	theta_cl_is_n := mat.NewVecDense(l, nil)
-	h_hum_c_is_n := mat.NewVecDense(l, nil)
-	h_hum_r_is_n := mat.NewVecDense(l, nil)
+	h_hum_c_is_n := make([]float64, l)
+	h_hum_r_is_n := make([]float64, l)
 
 	if method == "convergence" {
 		var theta_r, v_hum, theta_mrt, clo, m float64
@@ -263,32 +250,33 @@ func _get_h_hum_c_is_n_and_h_hum_r_is_n(
 			v_hum = v_hum_is_n[i]
 			theta_mrt = theta_mrt_is_n[i]
 			clo = clo_is_n[i]
-			m = m_is[i]
 
+			// 室 i の在室者の代謝量（人体内部発熱量）, W/m2
+			m = _get_m_is(met_is[i])
+
+			// ステップnにおける室iの在室者の着衣温度, degree C, [i, 1]
 			theta_cl, err := findRoot(a, b, tol, maxIter)
 			if err != nil {
 				panic(err)
 			}
 
-			// ステップnにおける室iの在室者の着衣温度, degree C, [i, 1]
-			theta_cl_is_n.SetVec(i, theta_cl)
-
 			// ステップnにおける室iの在室者周りの対流熱伝達率, W/m2K, [i, 1]
-			h_hum_c_is_n.SetVec(i, _get_h_hum_c_is_n_convergence(theta_r, theta_cl, v_hum))
+			h_hum_c_is_n[i] = _get_h_hum_c_is_n_convergence(theta_r, theta_cl, v_hum)
 
 			// ステップnにおける室iの在室者周りの放射熱伝達率, W/m2K, [i, 1]
-			h_hum_r_is_n.SetVec(i, _get_h_hum_r_is_n_convergence(theta_cl, theta_mrt))
+			h_hum_r_is_n[i] = _get_h_hum_r_is_n_convergence(theta_cl, theta_mrt)
 		}
 
 	} else if method == "constant" {
 		for i := 0; i < l; i++ {
+			// ステップnにおける室iの在室者の着衣温度, degree C, [i, 1]
 			theta_r := theta_r_is_n[i]
 
 			// ステップnにおける室iの在室者周りの対流熱伝達率, W/m2K, [i, 1]
-			h_hum_c_is_n.SetVec(i, _get_h_hum_c_is_n_constant(theta_r))
+			h_hum_c_is_n[i] = _get_h_hum_c_is_n_constant(theta_r)
 
 			// ステップnにおける室iの在室者周りの放射熱伝達率, W/m2K, [i, 1]
-			h_hum_r_is_n.SetVec(i, _get_h_hum_r_is_n_constant(theta_r))
+			h_hum_r_is_n[i] = _get_h_hum_r_is_n_constant(theta_r)
 		}
 	} else {
 		panic("Invalid method")

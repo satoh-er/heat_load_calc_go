@@ -3,7 +3,7 @@ package main
 import (
 	"math"
 
-	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/floats"
 )
 
 /*
@@ -20,7 +20,7 @@ import (
 func get_i_is_j_ns(
 	w *Weather,
 	direction Direction,
-) (i_srf_dn_j_ns, i_srf_sky_j_ns, i_srf_ref_j_ns, r_srf_eff_j_ns *mat.VecDense) {
+) (i_srf_dn_j_ns, i_srf_sky_j_ns, i_srf_ref_j_ns, r_srf_eff_j_ns []float64) {
 
 	// ステップnにおける法線面直達日射量, W/m2K [N+1]
 	i_dn_ns := w.i_dn_ns_plus
@@ -32,13 +32,13 @@ func get_i_is_j_ns(
 	h_sun_ns := w.h_sun_ns_plus
 
 	// ステップnにおける太陽方位角, rad [N+1]
-	a_sun_ns := w.a_sun_ns_plus
+	//a_sun_ns := w.a_sun_ns_plus
 
 	// 境界jの傾斜面の傾斜角, rad
 	beta_w_j := direction.beta_w_j()
 
 	// ステップnにおける境界jに入射する太陽の入射角, deg, [N+1]
-	phi_j_ns := get_phi_j_ns(h_sun_ns, a_sun_ns, direction)
+	cos_phi_j_ns := w.cos_phi_j_ns[direction]
 
 	// ステップ n における水平面全天日射量, W/m2, [n]
 	i_hrz_ns := _get_i_hrz_ns(i_dn_ns, i_sky_ns, h_sun_ns)
@@ -59,7 +59,7 @@ func get_i_is_j_ns(
 	i_srf_sky_j_ns = _get_i_srf_sky_j_ns(i_sky_ns, f_sky_j)
 
 	// ステップnにおける境界jに入射する日射量の直達成分, W/m2, [N+1]
-	i_srf_dn_j_ns = _get_i_srf_dn_j_ns(i_dn_ns, phi_j_ns)
+	i_srf_dn_j_ns = _get_i_srf_dn_j_ns(i_dn_ns, cos_phi_j_ns)
 
 	return i_srf_dn_j_ns, i_srf_sky_j_ns, i_srf_ref_j_ns, r_srf_eff_j_ns
 }
@@ -77,16 +77,13 @@ func get_i_is_j_ns(
    Notes:
        式(1)
 */
-func _get_i_srf_dn_j_ns(i_dn_ns, phi_j_ns *mat.VecDense) *mat.VecDense {
-	cos := mat.NewVecDense(phi_j_ns.Len(), nil)
-	for i := 0; i < phi_j_ns.Len(); i++ {
-		cos.SetVec(i, math.Cos(phi_j_ns.AtVec(i)))
+func _get_i_srf_dn_j_ns(i_dn_ns []float64, cos_phi_j_ns []float64) []float64 {
+	i_srf_dn_j_ns := make([]float64, len(cos_phi_j_ns))
+	for i := 0; i < len(cos_phi_j_ns); i++ {
+		i_srf_dn_j_ns[i] = i_dn_ns[i] * cos_phi_j_ns[i]
 	}
 
-	var i_srf_dn_j_ns mat.VecDense
-	i_srf_dn_j_ns.MulElemVec(i_dn_ns, cos)
-
-	return &i_srf_dn_j_ns
+	return i_srf_dn_j_ns
 }
 
 /*
@@ -102,10 +99,10 @@ func _get_i_srf_dn_j_ns(i_dn_ns, phi_j_ns *mat.VecDense) *mat.VecDense {
    Notes:
        式(2)
 */
-func _get_i_srf_sky_j_ns(i_sky_ns *mat.VecDense, f_sky_j float64) *mat.VecDense {
-	var i_srf_sky_j_ns mat.VecDense
-	i_srf_sky_j_ns.ScaleVec(f_sky_j, i_sky_ns)
-	return &i_srf_sky_j_ns
+func _get_i_srf_sky_j_ns(i_sky_ns []float64, f_sky_j float64) []float64 {
+	i_srf_sky_j_ns := make([]float64, len(i_sky_ns))
+	floats.ScaleTo(i_srf_sky_j_ns, f_sky_j, i_sky_ns)
+	return i_srf_sky_j_ns
 }
 
 /*
@@ -121,14 +118,14 @@ func _get_i_srf_sky_j_ns(i_sky_ns *mat.VecDense, f_sky_j float64) *mat.VecDense 
    Notes:
        式(3)
 */
-func _get_i_srf_ref_j_ns(f_gnd_j float64, i_hrz_ns *mat.VecDense) *mat.VecDense {
+func _get_i_srf_ref_j_ns(f_gnd_j float64, i_hrz_ns []float64) []float64 {
 	// 地面の日射反射率
 	const rho_gnd = 0.1
 
-	var i_srf_ref_j_ns mat.VecDense
-	i_srf_ref_j_ns.ScaleVec(f_gnd_j*rho_gnd, i_hrz_ns)
+	i_srf_ref_j_ns := make([]float64, len(i_hrz_ns))
+	floats.ScaleTo(i_srf_ref_j_ns, f_gnd_j*rho_gnd, i_hrz_ns)
 
-	return &i_srf_ref_j_ns
+	return i_srf_ref_j_ns
 }
 
 /*
@@ -144,10 +141,10 @@ func _get_i_srf_ref_j_ns(f_gnd_j float64, i_hrz_ns *mat.VecDense) *mat.VecDense 
    Notes:
        式(4)
 */
-func _get_r_srf_eff_j_ns(r_eff_ns *mat.VecDense, f_sky_j float64) *mat.VecDense {
-	var r_srf_eff_j_ns mat.VecDense
-	r_srf_eff_j_ns.ScaleVec(f_sky_j, r_eff_ns)
-	return &r_srf_eff_j_ns
+func _get_r_srf_eff_j_ns(r_eff_ns []float64, f_sky_j float64) []float64 {
+	r_srf_eff_j_ns := make([]float64, len(r_eff_ns))
+	floats.ScaleTo(r_srf_eff_j_ns, f_sky_j, r_eff_ns)
+	return r_srf_eff_j_ns
 }
 
 /*
@@ -206,18 +203,14 @@ func _get_f_sky_j(beta_w_j float64) float64 {
    Notes:
        式(7)
 */
-func _get_i_hrz_ns(i_dn_ns, i_sky_ns, h_sun_ns *mat.VecDense) *mat.VecDense {
-	sin_h_sun_ns := mat.NewVecDense(i_dn_ns.Len(), nil)
-	for i := 0; i < i_dn_ns.Len(); i++ {
-		h_sun := math.Max(h_sun_ns.AtVec(i), 0)
-		sin_h_sun_ns.SetVec(i, math.Sin(h_sun))
+func _get_i_hrz_ns(i_dn_ns, i_sky_ns, h_sun_ns []float64) []float64 {
+	i_hsr_ns := make([]float64, len(i_dn_ns))
+	for i := 0; i < len(i_dn_ns); i++ {
+		h_sun := math.Max(h_sun_ns[i], 0)
+		i_hsr_ns[i] = math.Sin(h_sun)*i_dn_ns[i] + i_sky_ns[i]
 	}
 
-	var i_hsr_ns mat.VecDense
-	i_hsr_ns.MulElemVec(sin_h_sun_ns, i_dn_ns)
-	i_hsr_ns.AddVec(&i_hsr_ns, i_sky_ns)
-
-	return &i_hsr_ns
+	return i_hsr_ns
 }
 
 /*
@@ -234,26 +227,26 @@ func _get_i_hrz_ns(i_dn_ns, i_sky_ns, h_sun_ns *mat.VecDense) *mat.VecDense {
    Notes:
        式(8), 式(9)
 */
-func get_phi_j_ns(h_sun_ns, a_sun_ns *mat.VecDense, drct_j Direction) *mat.VecDense {
-	theta_aoi_j_ns := mat.NewVecDense(h_sun_ns.Len(), nil)
+func get_phi_j_ns(h_sun_ns, a_sun_ns []float64, drct_j Direction) []float64 {
+	theta_aoi_j_ns := make([]float64, len(h_sun_ns))
 
 	if drct_j == DirectionTop {
 		// 方位が上面（beta_w_j=0）の場合は、厳密には方位角（alpha_w_j）は定義できないため、
 		// 条件分岐により式を分ける。
-		for i := 0; i < h_sun_ns.Len(); i++ {
+		for i := 0; i < len(h_sun_ns); i++ {
 			var cos_phi_j_ns float64
-			h_sun := h_sun_ns.At(i, 0)
+			h_sun := h_sun_ns[i]
 			cos_phi_j_ns = math.Max(math.Sin(h_sun), 0)
 			// ステップnにおける境界jに入射する日射の入射角, rad, [N+1]
-			theta_aoi_j_ns.SetVec(i, math.Acos(cos_phi_j_ns))
+			theta_aoi_j_ns[i] = math.Acos(cos_phi_j_ns)
 		}
 	} else if drct_j == DirectionBottom {
 		// 方位が下面（beta_w_j=0）の場合は、厳密には方位角（alpha_w_j）は定義できないため、
 		// 条件分岐により式を分ける。
-		for i := 0; i < h_sun_ns.Len(); i++ {
+		for i := 0; i < len(h_sun_ns); i++ {
 			// ステップnにおける境界jに入射する日射の入射角, rad, [N+1]
 			const acos_0 = math.Pi / 2
-			theta_aoi_j_ns.SetVec(i, acos_0)
+			theta_aoi_j_ns[i] = acos_0
 		}
 	} else {
 		// 境界 j における傾斜面の方位角, rad
@@ -264,9 +257,9 @@ func get_phi_j_ns(h_sun_ns, a_sun_ns *mat.VecDense, drct_j Direction) *mat.VecDe
 		cos_beta := math.Cos(beta_w_j)
 		sin_beta := math.Sin(beta_w_j)
 
-		for i := 0; i < h_sun_ns.Len(); i++ {
+		for i := 0; i < len(h_sun_ns); i++ {
 			var cos_phi_j_ns float64
-			h_sun := h_sun_ns.At(i, 0)
+			h_sun := h_sun_ns[i]
 
 			// ステップ n の境界 j における傾斜面に入射する太陽の入射角の余弦, -, [n]
 			// cos(h_sun_ns) == 0.0 の場合は太陽が天頂にある時であり、太陽の方位角が定義されない。
@@ -279,14 +272,14 @@ func get_phi_j_ns(h_sun_ns, a_sun_ns *mat.VecDense, drct_j Direction) *mat.VecDe
 			if cos_h_sun == 0.0 {
 				cos_phi_j_ns = math.Max(sin_h_sun*cos_beta, 0)
 			} else {
-				a_sun := a_sun_ns.AtVec(i)
+				a_sun := a_sun_ns[i]
 				cos_phi_j_ns = math.Max(sin_h_sun*cos_beta+
 					cos_h_sun*math.Sin(a_sun)*sin_beta*math.Sin(alpha_w_j)+
 					cos_h_sun*math.Cos(a_sun)*sin_beta*math.Cos(alpha_w_j), 0)
 			}
 
 			// ステップnにおける境界jに入射する日射の入射角, rad, [N+1]
-			theta_aoi_j_ns.SetVec(i, math.Acos(cos_phi_j_ns))
+			theta_aoi_j_ns[i] = math.Acos(cos_phi_j_ns)
 		}
 	}
 

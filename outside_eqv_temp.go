@@ -73,10 +73,10 @@ func get_theta_o_eqv_j_ns_for_external_general_part_and_external_opaque_part(
 		theta_o_eqv_j_ns.SetVec(
 			n,
 			theta_o_ns_plus[n]+
-				(a_s_j*(i_s_dn_j_ns.AtVec(n)*(1.0-f_ss_dn_j_ns.AtVec(n))+
-					i_s_sky_j_ns.AtVec(n)*(1.0-f_ss_sky_j_ns)+
-					i_s_ref_j_ns.AtVec(n)*(1.0-f_ss_ref_j_ns))-
-					eps_r_o_j*r_s_n_j_ns.AtVec(n)))
+				(a_s_j*(i_s_dn_j_ns[n]*(1.0-f_ss_dn_j_ns[n])+
+					i_s_sky_j_ns[n]*(1.0-f_ss_sky_j_ns)+
+					i_s_ref_j_ns[n]*(1.0-f_ss_ref_j_ns))-
+					eps_r_o_j*r_s_n_j_ns[n]))
 	}
 
 	return theta_o_eqv_j_ns
@@ -110,7 +110,7 @@ func get_theta_o_eqv_j_ns_for_external_transparent_part(
 	w *Weather,
 ) *mat.VecDense {
 	// ステップ n の境界 j における傾斜面に入射する太陽の入射角, rad, [n]
-	phi_j_ns := get_phi_j_ns(w.h_sun_ns_plus, w.a_sun_ns_plus, drct_j)
+	cos_phi_j_ns := w.cos_phi_j_ns[drct_j]
 
 	// ステップ n における境界 j の傾斜面に入射する日射量の直達成分, W / m2, [n]
 	// ステップ n における境界 j の傾斜面に入射する日射量の天空成分, W / m2, [n]
@@ -139,19 +139,19 @@ func get_theta_o_eqv_j_ns_for_external_transparent_part(
 	theta_o_sol_i_j_ns := make([]float64, w.number_of_data_plus())
 	for i := 0; i < w.number_of_data_plus(); i++ {
 		// ステップ n における境界 ｊ　の開口部の直達日射に対する吸収日射熱取得率, -, [N+1]
-		b_w_d_j_ns := wdw_j.get_b_w_d_j_ns(phi_j_ns.AtVec(i))
+		b_w_d_j_ns := wdw_j.get_b_w_d_j_ns(cos_phi_j_ns[i])
 
 		// 直達日射に起因する吸収日射熱取得量, W/m2, [N+1]
 		// eq.5
-		q_b_dn_j_ns := b_w_d_j_ns * (1.0 - f_ss_d_j_ns.AtVec(i)) * i_s_dn_j_ns.AtVec(i)
+		q_b_dn_j_ns := b_w_d_j_ns * (1.0 - f_ss_d_j_ns[i]) * i_s_dn_j_ns[i]
 
 		// 天空日射に起因する吸収日射熱取得量, W/m2, [N+1]
 		// eq.6
-		q_b_sky_j_ns := b_w_s_j * (1.0 - f_ss_s_j_ns) * i_s_sky_j_ns.AtVec(i)
+		q_b_sky_j_ns := b_w_s_j * (1.0 - f_ss_s_j_ns) * i_s_sky_j_ns[i]
 
 		// 地盤反射日射に起因する吸収日射熱取得量, W/m2, [N+1]
 		// eq.7
-		q_b_ref_j_ns := b_w_r_j * (1.0 - f_ss_r_j_ns) * i_s_ref_j_ns.AtVec(i)
+		q_b_ref_j_ns := b_w_r_j * (1.0 - f_ss_r_j_ns) * i_s_ref_j_ns[i]
 
 		// 吸収日射熱取得量, W/m2, [N+1]
 		// eq.4
@@ -160,7 +160,7 @@ func get_theta_o_eqv_j_ns_for_external_transparent_part(
 		// 室iの境界jの傾斜面のステップnにおける相当外気温度, ℃, [N+1]
 		// 透明な開口部の場合、透過日射はガラス面への透過の項で扱うため、ここでは吸収日射、長波長放射のみ考慮する。
 		// eq.3
-		theta_o_sol_i_j_ns[i] = theta_o_ns_plus[i] - eps_r_o_j*r_s_n_j_ns.AtVec(i)*r_s_o_j + q_b_all_j_ns/u_j
+		theta_o_sol_i_j_ns[i] = theta_o_ns_plus[i] - eps_r_o_j*r_s_n_j_ns[i]*r_s_o_j + q_b_all_j_ns/u_j
 	}
 
 	return mat.NewVecDense(w.number_of_data_plus(), theta_o_sol_i_j_ns)

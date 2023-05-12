@@ -129,8 +129,8 @@ Returns:
 Notes:
 	eq.1
 */
-func (w *Window) get_tau_w_d_j_ns(phi_j_ns float64) float64 {
-	return w._get_tau_w_j_phis(phi_j_ns)
+func (w *Window) get_tau_w_d_j_ns(cos_phi float64) float64 {
+	return w._get_tau_w_j_phis(cos_phi)
 }
 
 /*
@@ -142,8 +142,8 @@ Returns:
 Notes:
 	eq.2
 */
-func (w *Window) get_b_w_d_j_ns(phi_j_ns float64) float64 {
-	return w._get_b_w_j_phis(phi_j_ns)
+func (w *Window) get_b_w_d_j_ns(cos_phi_j_ns float64) float64 {
+	return w._get_b_w_j_phis(cos_phi_j_ns)
 }
 
 /*
@@ -203,8 +203,9 @@ func (w *Window) _get_tau_b_w_c_j() (float64, float64) {
 	for i := 0; i < M; i++ {
 		ms := float64(i + 1)
 		phi_ms := math.Pi / 2 * (ms - 1/2) / M
-		sin_cos := math.Sin(phi_ms) * math.Cos(phi_ms)
-		tau := w._get_tau_w_j_phis(phi_ms)
+		cos_phi_ms := math.Cos(phi_ms)
+		sin_cos := math.Sin(phi_ms) * cos_phi_ms
+		tau := w._get_tau_w_j_phis(cos_phi_ms)
 		tau_term += tau * sin_cos
 		b_term += tau * sin_cos
 	}
@@ -224,8 +225,8 @@ Returns:
 Notes:
 	eq.9
 */
-func (w *Window) _get_tau_w_j_phis(phis float64) float64 {
-	return w._get_tau_w_g_j_phis(phis) * w._r_a_w_g_j
+func (w *Window) _get_tau_w_j_phis(cos_phi float64) float64 {
+	return w._get_tau_w_g_j_phis(cos_phi) * w._r_a_w_g_j
 }
 
 /*
@@ -237,8 +238,8 @@ Returns:
 Notes:
 	eq.10
 */
-func (w *Window) _get_b_w_j_phis(phis float64) float64 {
-	return w._get_b_w_g_j_phis(phis) * w._r_a_w_g_j
+func (w *Window) _get_b_w_j_phis(cos_phis float64) float64 {
+	return w._get_b_w_g_j_phis(cos_phis) * w._r_a_w_g_j
 }
 
 /*
@@ -250,9 +251,9 @@ Returns:
 Notes:
 	eq.11
 */
-func (w *Window) _get_b_w_g_j_phis(phis float64) float64 {
-	tau_w_g_j_phis := w._get_tau_w_g_j_phis(phis)
-	rho_w_g_j_phis := w._get_rho_w_g_j_phis(phis)
+func (w *Window) _get_b_w_g_j_phis(cos_phi float64) float64 {
+	tau_w_g_j_phis := w._get_tau_w_g_j_phis(cos_phi)
+	rho_w_g_j_phis := w._get_rho_w_g_j_phis(cos_phi)
 	return (1 - tau_w_g_j_phis - rho_w_g_j_phis) * w._r_r_w_g_j
 }
 
@@ -265,15 +266,15 @@ Returns:
 Notes:
 	eq.12
 */
-func (w *Window) _get_tau_w_g_j_phis(phis float64) float64 {
+func (w *Window) _get_tau_w_g_j_phis(cos_phi float64) float64 {
 	if w._glass_type == GlassTypeSINGLE {
-		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(phis)
+		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(cos_phi)
 		return tau_w_g_s1_j_phis
 	} else if w._glass_type == GlassTypeMULTIPLE {
-		rho_w_g_s1b_j_phis := w._get_rho_w_g_s1b_j_phis(phis)
-		rho_w_g_s2f_j_phis := w._get_rho_w_g_s2f_j_phis(phis)
-		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(phis)
-		tau_w_g_s2_j_phis := w._get_tau_w_g_s2_j_phis(phis)
+		rho_w_g_s1b_j_phis := w._get_rho_w_g_s1b_j_phis(cos_phi)
+		rho_w_g_s2f_j_phis := w._get_rho_w_g_s2f_j_phis(cos_phi)
+		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(cos_phi)
+		tau_w_g_s2_j_phis := w._get_tau_w_g_s2_j_phis(cos_phi)
 		return tau_w_g_s1_j_phis * tau_w_g_s2_j_phis / (1 - math.Min(rho_w_g_s1b_j_phis*rho_w_g_s2f_j_phis, 0.9999))
 	} else {
 		panic(w._glass_type)
@@ -289,16 +290,16 @@ Returns:
 Notes:
 	eq.13
 */
-func (w *Window) _get_rho_w_g_j_phis(phis float64) float64 {
+func (w *Window) _get_rho_w_g_j_phis(cos_phi float64) float64 {
 	if w._glass_type == GlassTypeSINGLE {
-		rho_w_g_s1f_j_phis := w._get_rho_w_g_s1f_j_phis(phis)
+		rho_w_g_s1f_j_phis := w._get_rho_w_g_s1f_j_phis(cos_phi)
 		return rho_w_g_s1f_j_phis
 	} else if w._glass_type == GlassTypeMULTIPLE {
-		rho_w_g_s1f_j_phis := w._get_rho_w_g_s1f_j_phis(phis)
-		rho_w_g_s1b_j_phis := w._get_rho_w_g_s1b_j_phis(phis)
-		rho_w_g_s2f_j_phis := w._get_rho_w_g_s2f_j_phis(phis)
-		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(phis)
-		tau_w_g_s2_j_phis := w._get_tau_w_g_s2_j_phis(phis)
+		rho_w_g_s1f_j_phis := w._get_rho_w_g_s1f_j_phis(cos_phi)
+		rho_w_g_s1b_j_phis := w._get_rho_w_g_s1b_j_phis(cos_phi)
+		rho_w_g_s2f_j_phis := w._get_rho_w_g_s2f_j_phis(cos_phi)
+		tau_w_g_s1_j_phis := w._get_tau_w_g_s1_j_phis(cos_phi)
+		tau_w_g_s2_j_phis := w._get_tau_w_g_s2_j_phis(cos_phi)
 		return rho_w_g_s1f_j_phis + tau_w_g_s1_j_phis*tau_w_g_s2_j_phis*rho_w_g_s2f_j_phis/
 			(1-math.Min(rho_w_g_s1b_j_phis*rho_w_g_s2f_j_phis, 0.9999))
 	} else {
@@ -315,8 +316,8 @@ Returns:
 Notes:
 	eq.14
 */
-func (w *Window) _get_tau_w_g_s1_j_phis(phis float64) float64 {
-	return w._tau_w_g_s1_j * _get_tau_n_phi(phis)
+func (w *Window) _get_tau_w_g_s1_j_phis(cos_phi float64) float64 {
+	return w._tau_w_g_s1_j * _get_tau_n_phi(cos_phi)
 }
 
 /*
@@ -329,8 +330,8 @@ Notes:
 	この値は複層ガラスのみ計算される。
 	eq.15
 */
-func (w *Window) _get_tau_w_g_s2_j_phis(phis float64) float64 {
-	return w._tau_w_g_s2_j * _get_tau_n_phi(phis)
+func (w *Window) _get_tau_w_g_s2_j_phis(cos_phi float64) float64 {
+	return w._tau_w_g_s2_j * _get_tau_n_phi(cos_phi)
 }
 
 /*
@@ -342,8 +343,8 @@ Returns:
 Notes:
 	eq.16
 */
-func (w *Window) _get_rho_w_g_s1f_j_phis(phis float64) float64 {
-	return w._rho_w_g_s1f_j + (1-w._rho_w_g_s1f_j)*_get_rho_n_phi(phis)
+func (w *Window) _get_rho_w_g_s1f_j_phis(cos_phi float64) float64 {
+	return w._rho_w_g_s1f_j + (1-w._rho_w_g_s1f_j)*_get_rho_n_phi(cos_phi)
 }
 
 /*
@@ -356,8 +357,8 @@ Notes:
 	この値は複層ガラスのみ計算される。
 	eq.17
 */
-func (w *Window) _get_rho_w_g_s1b_j_phis(phis float64) float64 {
-	return w._rho_w_g_s1b_j + (1-w._rho_w_g_s1b_j)*_get_rho_n_phi(phis)
+func (w *Window) _get_rho_w_g_s1b_j_phis(cos_phi float64) float64 {
+	return w._rho_w_g_s1b_j + (1-w._rho_w_g_s1b_j)*_get_rho_n_phi(cos_phi)
 }
 
 /*
@@ -370,8 +371,8 @@ Notes:
 	この値は複層ガラスのみ計算される。
 	eq.18
 */
-func (w *Window) _get_rho_w_g_s2f_j_phis(phis float64) float64 {
-	return w._rho_w_g_s2f_j + (1-w._rho_w_g_s2f_j)*_get_rho_n_phi(phis)
+func (w *Window) _get_rho_w_g_s2f_j_phis(cos_phi float64) float64 {
+	return w._rho_w_g_s2f_j + (1-w._rho_w_g_s2f_j)*_get_rho_n_phi(cos_phi)
 }
 
 /*
@@ -433,8 +434,7 @@ func (w *Window) tau_w_g_j() float64 {
     Notes:
         eq.19
 */
-func _get_tau_n_phi(phi float64) float64 {
-	cos_phi := math.Cos(phi)
+func _get_tau_n_phi(cos_phi float64) float64 {
 	cos_phi_2 := cos_phi * cos_phi
 	cos_phi_3 := cos_phi_2 * cos_phi
 	cos_phi_4 := cos_phi_2 * cos_phi_2
@@ -452,8 +452,7 @@ func _get_tau_n_phi(phi float64) float64 {
     Notes:
         eq.20
 */
-func _get_rho_n_phi(phi_ns float64) float64 {
-	cos_phi := math.Cos(phi_ns)
+func _get_rho_n_phi(cos_phi float64) float64 {
 	cos_phi_2 := cos_phi * cos_phi
 	cos_phi_3 := cos_phi_2 * cos_phi
 	cos_phi_4 := cos_phi_2 * cos_phi_2

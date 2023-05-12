@@ -2,8 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
-	"runtime/pprof"
 )
 
 /*
@@ -83,21 +81,6 @@ func calc(
 	}
 
 	log.Println("本計算")
-
-	// ------- CPU Profile -------
-	f, err := os.Create("cpu.prof")
-	if err != nil {
-		log.Fatal("CPUプロファイル作成失敗： ", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal("CPUプロファイルクローズ失敗： ", err)
-		}
-	}()
-	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Fatal("CPUプロファイル開始失敗： ", err)
-	}
-	defer pprof.StopCPUProfile()
 
 	m := 1
 	for n := 0; n < n_step_main; n++ {

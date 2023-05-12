@@ -22,13 +22,15 @@ type Weather struct {
 	_theta_o_ns     []float64 // 太陽高度, rad, [n]
 	_x_o_ns         []float64 // 太陽方位角, rad, [n]
 	_itv            Interval  // 時間間隔
-	a_sun_ns_plus   *mat.VecDense
-	h_sun_ns_plus   *mat.VecDense
-	i_dn_ns_plus    *mat.VecDense
-	i_sky_ns_plus   *mat.VecDense
-	r_n_ns_plus     *mat.VecDense
+	a_sun_ns_plus   []float64
+	h_sun_ns_plus   []float64
+	i_dn_ns_plus    []float64
+	i_sky_ns_plus   []float64
+	r_n_ns_plus     []float64
 	theta_o_ns_plus []float64
 	x_o_ns_plus     *mat.VecDense
+
+	cos_phi_j_ns map[Direction][]float64 //ステップnにおける境界jの傾斜面に入射する太陽の入射角の余弦, -,  [N+1]
 }
 
 /*
@@ -46,7 +48,7 @@ func NewWeather(
 	a_sun_ns, h_sun_ns, i_dn_ns, i_sky_ns, r_n_ns, theta_o_ns, x_o_ns []float64,
 	itv Interval,
 ) *Weather {
-	return &Weather{
+	w := &Weather{
 		_a_sun_ns:       a_sun_ns,
 		_h_sun_ns:       h_sun_ns,
 		_i_dn_ns:        i_dn_ns,
@@ -55,14 +57,27 @@ func NewWeather(
 		_theta_o_ns:     theta_o_ns,
 		_x_o_ns:         x_o_ns,
 		_itv:            itv,
-		a_sun_ns_plus:   _add_index_0_data_to_end(a_sun_ns),
-		h_sun_ns_plus:   _add_index_0_data_to_end(h_sun_ns),
-		i_dn_ns_plus:    _add_index_0_data_to_end(i_dn_ns),
-		i_sky_ns_plus:   _add_index_0_data_to_end(i_sky_ns),
-		r_n_ns_plus:     _add_index_0_data_to_end(r_n_ns),
+		a_sun_ns_plus:   _add_index_0_data_to_end_slice(a_sun_ns),
+		h_sun_ns_plus:   _add_index_0_data_to_end_slice(h_sun_ns),
+		i_dn_ns_plus:    _add_index_0_data_to_end_slice(i_dn_ns),
+		i_sky_ns_plus:   _add_index_0_data_to_end_slice(i_sky_ns),
+		r_n_ns_plus:     _add_index_0_data_to_end_slice(r_n_ns),
 		theta_o_ns_plus: _add_index_0_data_to_end_slice(theta_o_ns),
 		x_o_ns_plus:     _add_index_0_data_to_end(x_o_ns),
 	}
+
+	w.cos_phi_j_ns = make(map[Direction][]float64)
+	for _, d := range []Direction{DirectionS, DirectionSW, DirectionW, DirectionN, DirectionNE, DirectionE, DirectionSE, DirectionTop, DirectionBottom} {
+		phi_j_ns := get_phi_j_ns(w.h_sun_ns_plus, w.a_sun_ns_plus, d)
+
+		cos_phi := make([]float64, len(phi_j_ns))
+		for i, phi_j := range phi_j_ns {
+			cos_phi[i] = math.Cos(phi_j)
+		}
+		w.cos_phi_j_ns[d] = cos_phi
+	}
+
+	return w
 }
 
 func make_weather(method string, itv Interval, file_path string, region Region) *Weather {

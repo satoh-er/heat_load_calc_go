@@ -18,7 +18,7 @@ func get_next_temp_and_load(
 	lr_cs_max_cap_is []float64,
 	theta_natural_is_n []float64,
 	n int,
-) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
+) ([]float64, []float64, []float64) {
 
 	var nn int
 	if n < 0 {
@@ -130,7 +130,7 @@ func get_next_temp_and_load(
 	// 計算された放射空調負荷が最大放熱量を上回る場合は、放熱量を最大放熱量に固定して、対流空調負荷を未知数として再計算する。
 	over_lr := make([]bool, roomShape)
 	for i := range over_lr {
-		over_lr[i] = lr.At(i, 0) > lr_h_max_cap_is[i]
+		over_lr[i] = lr[i] > lr_h_max_cap_is[i]
 	}
 
 	for i, v := range over_lr {
@@ -148,7 +148,7 @@ func get_next_temp_and_load(
 	// 注意：冷房の最大放熱量は正の値で指定される。一方、計算される負荷（lr）は、冷房の場合、負の値で指定される。
 	under_lr := make([]bool, roomShape)
 	for i := range under_lr {
-		under_lr[i] = lr.At(i, 0) < -lr_cs_max_cap_is[i]
+		under_lr[i] = lr[i] < -lr_cs_max_cap_is[i]
 	}
 
 	for i, v := range under_lr {
@@ -205,7 +205,7 @@ func get_load_and_temp(
 	lc_set mat.MutableVector,
 	r []float64,
 	lr_set mat.MutableVector,
-) (*mat.VecDense, *mat.VecDense, *mat.VecDense) {
+) ([]float64, []float64, []float64) {
 
 	n := len(nt)
 
@@ -268,5 +268,5 @@ func get_load_and_temp(
 		lr_rq[i] = v.AtVec(i)*r[i] + lr_set.AtVec(i)*(1-r[i])
 	}
 
-	return mat.NewVecDense(n, theta_rq), mat.NewVecDense(n, lc_rq), mat.NewVecDense(n, lr_rq)
+	return theta_rq, lc_rq, lr_rq
 }

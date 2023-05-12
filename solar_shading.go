@@ -2,8 +2,6 @@ package main
 
 import (
 	"math"
-
-	"gonum.org/v1/gonum/mat"
 )
 
 // 日よけ計算に関するインタフェイス
@@ -18,7 +16,7 @@ type SolarShading interface {
 		Returns:
 			直達日射に対する日除けの影面積比率, [N+1]
 	*/
-	get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n *mat.VecDense) *mat.VecDense
+	get_f_ss_dn_j_ns(h_sun_n []float64, a_sun_n []float64) []float64
 
 	/*
 		天空放射に対する日よけの影面積比率を計算する。
@@ -124,15 +122,15 @@ Notes:
 	日射が壁にあたらない場合は日影そのものができない。
 	その場合は値として 0.0 を返す。
 */
-func (self *SolarShadingSimple) get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n *mat.VecDense) *mat.VecDense {
-	n := h_sun_n.Len()
+func (self *SolarShadingSimple) get_f_ss_dn_j_ns(h_sun_n, a_sun_n []float64) []float64 {
+	n := len(h_sun_n)
 	f_ss_d_j_ns := make([]float64, n)
 
 	for i := 0; i < n; i++ {
-		h_s_n := math.Max(h_sun_n.AtVec(i), 0.0)
+		h_s_n := math.Max(h_sun_n[i], 0.0)
 		var a_s_n float64
-		if h_sun_n.AtVec(i) > 0.0 {
-			a_s_n = a_sun_n.AtVec(i)
+		if h_sun_n[i] > 0.0 {
+			a_s_n = a_sun_n[i]
 		} else {
 			a_s_n = 0.0
 		}
@@ -154,7 +152,7 @@ func (self *SolarShadingSimple) get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n 
 		f_ss_d_j_ns[i] = math.Min(math.Max(l_ss_d_y_j_n/self._l_y_h_j, 0.0), 1.0)
 
 		// 日が出ていないときは 0.0 とする。
-		if h_sun_n.AtVec(i) <= 0.0 {
+		if h_sun_n[i] <= 0.0 {
 			f_ss_d_j_ns[i] = 0.0
 		}
 
@@ -164,7 +162,7 @@ func (self *SolarShadingSimple) get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n 
 		}
 	}
 
-	return mat.NewVecDense(n, f_ss_d_j_ns)
+	return f_ss_d_j_ns
 }
 
 /*
@@ -229,7 +227,7 @@ Args:
 Returns:
 	直達日射に対する日除けの影面積比率, [N+1]
 */
-func (self *SolarShadingDetail) get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n *mat.VecDense) *mat.VecDense {
+func (self *SolarShadingDetail) get_f_ss_dn_j_ns(h_sun_n, a_sun_n []float64) []float64 {
 	panic("Not Implemented Yet")
 }
 
@@ -269,8 +267,8 @@ Args:
 Returns:
 	直達日射に対する日除けの影面積比率, [N+1]
 */
-func (self *SolarShadingNot) get_f_ss_dn_j_ns(h_sun_n *mat.VecDense, a_sun_n *mat.VecDense) *mat.VecDense {
-	return mat.NewVecDense(h_sun_n.Len(), nil)
+func (self *SolarShadingNot) get_f_ss_dn_j_ns(h_sun_n []float64, a_sun_n []float64) []float64 {
+	return make([]float64, len(h_sun_n))
 }
 
 /*

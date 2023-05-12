@@ -182,7 +182,7 @@ func (self *Operation) get_operation_mode_is_n(
 	nn int,
 	is_radiative_heating_is []bool,
 	is_radiative_cooling_is []bool,
-	met_is mat.Vector,
+	met_is []float64,
 	theta_r_ot_ntr_non_nv_is_n_pls *mat.VecDense,
 	theta_r_ot_ntr_nv_is_n_pls *mat.VecDense,
 	theta_r_ntr_non_nv_is_n_pls []float64,
@@ -253,8 +253,8 @@ func (self *Operation) get_theta_target_is_n(
 	nn int,
 	is_radiative_heating_is []bool,
 	is_radiative_cooling_is []bool,
-	met_is mat.Vector,
-) ([]float64, []float64, mat.Vector, mat.Vector) {
+	met_is []float64,
+) ([]float64, []float64, []float64, []float64) {
 	lower_target_is_n := self._lower_target_is_ns.Get(nn)
 	upper_target_is_n := self._upper_target_is_ns.Get(nn)
 
@@ -350,7 +350,6 @@ func _get_theta_target_simple(
 	// ステップnの室iにおけるClo値, [i, 1]
 	l := theta_r_is_n.Len()
 	clo_is_n := mat.NewVecDense(l, nil)
-	clo_light := get_clo_light()
 	for i := 0; i < l; i++ {
 		clo_is_n.SetVec(i, clo_light)
 	}
@@ -377,10 +376,10 @@ func _get_theta_target_simple(
 func _get_theta_target(
 	operation_mode_is_n []OperationMode,
 	p_v_r_is_n []float64,
-	met_is mat.Vector,
+	met_is []float64,
 	lower_target_is_n []float64,
 	upper_target_is_n []float64,
-	h_hum_is_n mat.Vector,
+	h_hum_is_n []float64,
 	clo_is_n []float64,
 ) (
 	[]float64,
@@ -393,8 +392,8 @@ func _get_theta_target(
 			v := get_theta_ot_target(
 				clo_is_n[i],
 				p_v_r_is_n[i],
-				h_hum_is_n.AtVec(i),
-				met_is.AtVec(i),
+				h_hum_is_n[i],
+				met_is[i],
 				lower_target_is_n[i],
 			)
 			theta_lower_target_is_n[i] = v
@@ -402,8 +401,8 @@ func _get_theta_target(
 			v := get_theta_ot_target(
 				clo_is_n[i],
 				p_v_r_is_n[i],
-				h_hum_is_n.AtVec(i),
-				met_is.AtVec(i),
+				h_hum_is_n[i],
+				met_is[i],
 				lower_target_is_n[i],
 			)
 			theta_upper_target_is_n[i] = v
@@ -481,10 +480,6 @@ func get_clo_is_ns(operation_mode_is_n []OperationMode) []float64 {
 	clo_is_n := make([]float64, len(operation_mode_is_n))
 
 	// 運転方法に応じてclo値の設定を決定する。
-	clo_heavy := get_clo_heavy()
-	clo_light := get_clo_light()
-	clo_middle := get_clo_middle()
-
 	for i, v := range operation_mode_is_n {
 		switch v {
 		case HEATING:
@@ -518,7 +513,7 @@ func _get_operation_mode_pmv_is_n(
 	is_radiative_cooling_is []bool,
 	is_radiative_heating_is []bool,
 	method string,
-	met_is mat.Vector,
+	met_is []float64,
 	theta_r_ntr_non_nv_is_n_pls []float64,
 	theta_r_ntr_nv_is_n_pls []float64,
 	theta_mrt_hum_ntr_non_nv_is_n_pls []float64,
@@ -531,14 +526,12 @@ func _get_operation_mode_pmv_is_n(
 	p_v_r_ntr_nv_is_n_pls := get_p_v_r_is_n(x_r_ntr_nv_is_n_pls)
 
 	// 薄着時のClo値
-	clo_light := get_clo_light()
 	clo_light_slice := make([]float64, len(is_radiative_cooling_is))
 	for i := 0; i < len(is_radiative_cooling_is); i++ {
 		clo_light_slice[i] = clo_light
 	}
 
 	// 厚着時のClo値
-	clo_heavy := get_clo_heavy()
 	clo_heavy_slice := make([]float64, len(is_radiative_cooling_is))
 	for i := 0; i < len(is_radiative_cooling_is); i++ {
 		clo_heavy_slice[i] = clo_heavy

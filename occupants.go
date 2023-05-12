@@ -49,14 +49,8 @@ func get_q_hum_psn_is_n_slice(theta_r_is_n []float64) []float64 {
 	return q_hum_psn_is_n
 }
 
-func get_clo_heavy() float64 {
-	return 1.1
-}
+const clo_heavy = 1.1
 
-func get_clo_middle() float64 {
-	return 0.7
-}
+const clo_middle = 0.7
 
-func get_clo_light() float64 {
-	return 0.3
-}
+const clo_light = 0.3
