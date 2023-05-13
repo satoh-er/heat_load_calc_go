@@ -15,7 +15,8 @@ type PreCalcParameters struct {
 	// ステップnの境界jにおける透過日射熱取得量のうち表面に吸収される日射量, W/m2, [j, 8760*4]
 	q_s_sol_js_ns mat.Matrix
 
-	f_ax_js_js mat.Matrix
+	// f_AX のLU分解, [i, i]
+	f_ax_js_js *mat.LU
 
 	// 室iの在室者に対する境界j*の形態係数
 	f_mrt_hum_is_js mat.Matrix
@@ -187,9 +188,9 @@ Returns:
 Notes:
     式(4.1)
 */
-func get_f_wsc_js_ns(f_ax_js_js mat.Matrix, f_crx_js_ns mat.Matrix) *mat.Dense {
+func get_f_wsc_js_ns(f_ax_js_js *mat.LU, f_crx_js_ns mat.Matrix) *mat.Dense {
 	var temp1 mat.Dense
-	temp1.Solve(f_ax_js_js, f_crx_js_ns)
+	f_ax_js_js.SolveTo(&temp1, false, f_crx_js_ns)
 	return &temp1
 }
 
@@ -205,11 +206,10 @@ Returns:
 Notes:
     式(4.2)
 */
-func get_f_wsr_js_is(f_ax_js_js mat.Matrix, f_fia_js_is mat.Matrix) *mat.Dense {
-	var temp1, temp2 mat.Dense
-	temp1.Inverse(f_ax_js_js)
-	temp2.Mul(&temp1, f_fia_js_is)
-	return &temp2
+func get_f_wsr_js_is(f_ax_js_js *mat.LU, f_fia_js_is mat.Matrix) *mat.Dense {
+	var temp1 mat.Dense
+	f_ax_js_js.SolveTo(&temp1, false, f_fia_js_is)
+	return &temp1
 }
 
 /*
@@ -350,7 +350,7 @@ func get_f_ax_js_is(
 	p_js_is mat.Matrix,
 	phi_a0_js mat.Vector,
 	phi_t0_js mat.Vector,
-) *mat.Dense {
+) *mat.LU {
 	// 1.0 + phi_a0_js * (h_s_r_js + p_js_is)
 	temp1 := make([]float64, phi_a0_js.Len())
 	for i := 0; i < phi_a0_js.Len(); i++ {
@@ -394,7 +394,11 @@ func get_f_ax_js_is(
 	result.Sub(temp2, &temp5)
 	result.Sub(&result, &temp6)
 
-	return &result
+	// 高速化のために、ここで LU 分解を行う
+	var lu mat.LU
+	lu.Factorize(&result)
+
+	return &lu
 }
 
 /*
@@ -1814,11 +1818,11 @@ Notes:
 */
 func get_f_wsb_js_is_n_pls(
 	f_flb_js_is_n_pls mat.Matrix,
-	f_ax_js_js mat.Matrix,
+	f_ax_js_js *mat.LU,
 ) *mat.Dense {
 
 	var result mat.Dense
-	result.Solve(f_ax_js_js, f_flb_js_is_n_pls)
+	f_ax_js_js.SolveTo(&result, false, f_flb_js_is_n_pls)
 
 	return &result
 }
@@ -2454,10 +2458,10 @@ Notes:
 */
 func get_f_wsv_js_n_pls(
 	f_cvl_js_n_pls []float64,
-	f_ax_js_js mat.Matrix,
+	f_ax_js_js *mat.LU,
 ) *mat.VecDense {
 	var result mat.VecDense
-	result.SolveVec(f_ax_js_js, mat.NewVecDense(len(f_cvl_js_n_pls), f_cvl_js_n_pls))
+	f_ax_js_js.SolveVecTo(&result, false, mat.NewVecDense(len(f_cvl_js_n_pls), f_cvl_js_n_pls))
 
 	return &result
 }
