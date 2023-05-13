@@ -1952,21 +1952,23 @@ func get_f_flr_js_is_n(
 	operation_mode_is_n []OperationMode,
 ) *mat.Dense {
 	r, c := f_flr_c_js_is.Dims()
-	result := mat.NewDense(r, c, nil)
+	result := make([]float64, r*c)
+	off := 0
 	for i := 0; i < r; i++ {
 		for j := 0; j < c; j++ {
 			var f_flr float64
 			if operation_mode_is_n[j] == HEATING {
-				f_flr += f_flr_c_js_is.At(i, j)
+				f_flr = f_flr_c_js_is.At(i, j)
 			} else if operation_mode_is_n[j] == COOLING {
-				f_flr += f_flr_h_js_is.At(i, j)
+				f_flr = f_flr_h_js_is.At(i, j)
 			} else {
 				//PASS
 			}
-			result.Set(i, j, f_flr)
+			result[off] = f_flr
+			off++
 		}
 	}
-	return result
+	return mat.NewDense(r, c, result)
 }
 
 /*
