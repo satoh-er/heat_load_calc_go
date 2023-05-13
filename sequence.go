@@ -2544,13 +2544,13 @@ func get_theta_dsh_s_t_js_ms_n_pls(
 	phi_t1_js_ms [][]float64,
 	r_js_ms [][]float64,
 	theta_dsh_srf_t_js_ms_n [][]float64,
-	theta_rear_js_n mat.Vector,
+	theta_rear_js_n []float64,
 ) [][]float64 {
 	result := make([][]float64, len(phi_t1_js_ms))
 	for j := 0; j < len(phi_t1_js_ms); j++ {
 		result[j] = make([]float64, len(phi_t1_js_ms[j]))
 		for m := 0; m < len(phi_t1_js_ms[j]); m++ {
-			result[j][m] = phi_t1_js_ms[j][m]*theta_rear_js_n.AtVec(j) + r_js_ms[j][m]*theta_dsh_srf_t_js_ms_n[j][m]
+			result[j][m] = phi_t1_js_ms[j][m]*theta_rear_js_n[j] + r_js_ms[j][m]*theta_dsh_srf_t_js_ms_n[j][m]
 		}
 	}
 
@@ -2596,7 +2596,7 @@ func get_theta_s_rear_js_n(
 	theta_eo_js_n mat.Vector,
 	k_s_r_js_is mat.Matrix,
 	theta_r_is_n []float64,
-) *mat.VecDense {
+) []float64 {
 
 	var result1, result2, result3 mat.VecDense
 
@@ -2614,5 +2614,5 @@ func get_theta_s_rear_js_n(
 	finalResult.AddVec(&result1, &result2)
 	finalResult.AddVec(&finalResult, &result3)
 
-	return &finalResult
+	return finalResult.RawVector().Data
 }
