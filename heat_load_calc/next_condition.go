@@ -231,18 +231,12 @@ func get_load_and_temp(
 	}
 
 	// Calculate x1 and x2
-	ntv := mat.NewVecDense(n, nt)
-	cv := mat.NewVecDense(n, c)
-	rv := mat.NewVecDense(n, r)
 
 	// kt * nt.T - kc * c.T - kr * r.T
 	var x1, x1_term1, x1_term2, x1_term3 mat.Dense
-	ntv_T := ntv.T()
-	cv_T := cv.T()
-	rv_T := rv.T()
-	x1_term1.Apply(func(i, j int, v float64) float64 { return v * ntv_T.At(0, j) }, kt)
-	x1_term2.Apply(func(i, j int, v float64) float64 { return v * cv_T.At(0, j) }, kc)
-	x1_term3.Apply(func(i, j int, v float64) float64 { return v * rv_T.At(0, j) }, kr)
+	x1_term1.Apply(func(i, j int, v float64) float64 { return v * nt[j] }, kt)
+	x1_term2.Apply(func(i, j int, v float64) float64 { return v * c[j] }, kc)
+	x1_term3.Apply(func(i, j int, v float64) float64 { return v * r[j] }, kr)
 	x1.Sub(&x1_term1, &x1_term2)
 	x1.Sub(&x1, &x1_term3)
 

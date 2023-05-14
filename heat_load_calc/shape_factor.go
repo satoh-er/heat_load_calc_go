@@ -25,25 +25,26 @@ import (
 func get_f_mrt_is_js(a_s_js, h_s_r_js mat.Vector, p_is_js mat.Matrix) *mat.Dense {
 	var ah mat.VecDense
 	ah.MulElemVec(a_s_js, h_s_r_js)
+	_ah := ah.RawVector().Data
 
 	var term1 mat.Dense
-	ahT := ah.T()
 	term1.Apply(func(i, j int, v float64) float64 {
-		return v * ahT.At(0, j)
+		return v * _ah[j]
 	}, p_is_js)
 
 	var term2 mat.VecDense
 	term2.MulVec(p_is_js, &ah)
+	_term2 := term2.RawVector().Data
 
 	term1.Apply(func(i, j int, v float64) float64 {
-		return v / term2.AtVec(i)
+		return v / _term2[i]
 	}, &term1)
 
 	return &term1
 }
 
-func get_h_s_r_js(id_rm_is []int, a_s_js *mat.VecDense, connected_room_id_js []int) *mat.VecDense {
-	h_s_r_js := mat.NewVecDense(a_s_js.Len(), nil)
+func get_h_s_r_js(id_rm_is []int, a_s_js *mat.VecDense, connected_room_id_js []int) []float64 {
+	h_s_r_js := make([]float64, a_s_js.Len())
 
 	for i := 0; i < len(id_rm_is); i++ {
 
@@ -62,7 +63,7 @@ func get_h_s_r_js(id_rm_is []int, a_s_js *mat.VecDense, connected_room_id_js []i
 		for j, room_id := range connected_room_id_js {
 			is_connected := room_id == id_rm_is[i]
 			if is_connected {
-				h_s_r_js.SetVec(j, temp[jj])
+				h_s_r_js[j] = temp[jj]
 				jj++
 			}
 		}

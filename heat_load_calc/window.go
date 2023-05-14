@@ -200,14 +200,15 @@ func (w *Window) _get_tau_b_w_c_j() (float64, float64) {
 	const M = 1000
 
 	var tau_term, b_term float64
-	for i := 0; i < M; i++ {
-		ms := float64(i + 1)
-		phi_ms := math.Pi / 2 * (ms - 1/2) / M
+	for i := 1; i <= M; i++ {
+		ms := float64(i)
+		phi_ms := math.Pi / 2.0 * (ms - 1.0/2.0) / M
 		cos_phi_ms := math.Cos(phi_ms)
 		sin_cos := math.Sin(phi_ms) * cos_phi_ms
 		tau := w._get_tau_w_j_phis(cos_phi_ms)
+		b := w._get_b_w_j_phis(cos_phi_ms)
 		tau_term += tau * sin_cos
-		b_term += tau * sin_cos
+		b_term += b * sin_cos
 	}
 
 	tau_w_c_j := math.Pi / M * tau_term
@@ -522,7 +523,7 @@ func _get_tau_w_g_s1_j(tau_w_g_j float64, rho_w_g_s2f_j float64, glass_type Glas
 	} else if glass_type == GlassTypeMULTIPLE {
 		temp := 0.379 * rho_w_g_s2f_j * tau_w_g_j
 		temp_2 := temp * temp
-		return (temp + math.Sqrt(temp_2-4*(0.379*rho_w_g_s2f_j-1)*tau_w_g_j)) / 2
+		return (temp + math.Sqrt(temp_2-4.0*(0.379*rho_w_g_s2f_j-1)*tau_w_g_j)) / 2.0
 	} else {
 		panic(glass_type)
 	}
@@ -549,9 +550,9 @@ func _get_tau_w_g_j(
 	glass_type GlassType,
 ) float64 {
 	if glass_type == GlassTypeSINGLE {
-		return (eta_w_g_j - (1-rho_w_g_s1f_j)*r_r_w_g_j) / (1 - r_r_w_g_j)
+		return (eta_w_g_j - (1.0-rho_w_g_s1f_j)*r_r_w_g_j) / (1.0 - r_r_w_g_j)
 	} else if glass_type == GlassTypeMULTIPLE {
-		return (eta_w_g_j - (1-rho_w_g_s1f_j)*r_r_w_g_j) / ((1 - r_r_w_g_j) - rho_w_g_s2f_j*r_r_w_g_j)
+		return (eta_w_g_j - (1.0-rho_w_g_s1f_j)*r_r_w_g_j) / ((1.0 - r_r_w_g_j) - rho_w_g_s2f_j*r_r_w_g_j)
 	} else {
 		panic(glass_type)
 	}
@@ -619,11 +620,11 @@ func _get_r_r_w_g_j(
 	glass_type GlassType,
 ) float64 {
 	if glass_type == GlassTypeSINGLE {
-		return (1/2*(1/u_w_g_j-r_w_o_w-r_w_i_w) + r_w_o_s) * u_w_g_s_j
+		return (1.0/2.0*(1/u_w_g_j-r_w_o_w-r_w_i_w) + r_w_o_s) * u_w_g_s_j
 	} else if glass_type == GlassTypeMULTIPLE {
 		// 複層ガラスにおける窓の中空層の熱伝達抵抗, m2K/W
 		const r_w_air = 0.003
-		return (1/4*(1/u_w_g_j-r_w_o_w-r_w_i_w-r_w_air) + r_w_o_s) * u_w_g_s_j
+		return (1.0/4.0*(1/u_w_g_j-r_w_o_w-r_w_i_w-r_w_air) + r_w_o_s) * u_w_g_s_j
 	} else {
 		panic(glass_type)
 	}
@@ -643,7 +644,7 @@ func _get_r_r_w_g_j(
         eq.29
 */
 func _get_u_w_g_s_j(u_w_g_j float64, r_w_o_w float64, r_w_i_w float64, r_w_o_s float64, r_w_i_s float64) float64 {
-	return 1 / (1/u_w_g_j - r_w_o_w - r_w_i_w + r_w_o_s + r_w_i_s)
+	return 1.0 / (1.0/u_w_g_j - r_w_o_w - r_w_i_w + r_w_o_s + r_w_i_s)
 }
 
 /*

@@ -5,58 +5,34 @@ package main
 import (
 	"math"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
 const nRoot = 12
 
 type ResponseFactor struct {
-	_rft0 float64       // 貫流応答係数の初項
-	_rfa0 float64       // 吸熱応答係数の初項
-	_rft1 *mat.VecDense // 貫流応答係数
-	_rfa1 *mat.VecDense // 吸熱応答係数
-	_row  *mat.VecDense // 公比
+	rft0 float64   // 貫流応答係数の初項
+	rfa0 float64   // 吸熱応答係数の初項
+	rft1 []float64 // 貫流応答係数
+	rfa1 []float64 // 吸熱応答係数
+	row  []float64 // 公比
 }
 
 func NewResponseFactor(
 	rft0 float64,
 	rfa0 float64,
-	rft1 *mat.VecDense,
-	rfa1 *mat.VecDense,
-	row *mat.VecDense,
+	rft1 []float64,
+	rfa1 []float64,
+	row []float64,
 ) *ResponseFactor {
 	return &ResponseFactor{
-		_rft0: rft0,
-		_rfa0: rfa0,
-		_rft1: rft1,
-		_rfa1: rfa1,
-		_row:  row,
+		rft0: rft0,
+		rfa0: rfa0,
+		rft1: rft1,
+		rfa1: rfa1,
+		row:  row,
 	}
-}
-
-// 貫流応答係数の初項
-func (rf *ResponseFactor) rft0() float64 {
-	return rf._rft0
-}
-
-// 吸熱応答係数の初項
-func (rf *ResponseFactor) rfa0() float64 {
-	return rf._rfa0
-}
-
-// 貫流応答係数
-func (rf *ResponseFactor) rft1() *mat.VecDense {
-	return rf._rft1
-}
-
-// 吸熱応答係数
-func (rf *ResponseFactor) rfa1() *mat.VecDense {
-	return rf._rfa1
-}
-
-// 公比
-func (rf *ResponseFactor) row() *mat.VecDense {
-	return rf._row
 }
 
 /*
@@ -74,9 +50,9 @@ func create_for_steady(u_w float64, r_i float64) *ResponseFactor {
 	return NewResponseFactor(
 		1.0,
 		1.0/u_so,
-		mat.NewVecDense(nRoot, nil),
-		mat.NewVecDense(nRoot, nil),
-		mat.NewVecDense(nRoot, nil),
+		make([]float64, nRoot),
+		make([]float64, nRoot),
+		make([]float64, nRoot),
 	)
 }
 
@@ -98,9 +74,7 @@ func create_for_unsteady_not_ground(cs []float64, rs []float64, r_o float64) *Re
 	rs = append(rs[:], r_o)
 
 	// 単位変換 kJ/m2K -> J/m2K
-	for i := range cs {
-		cs[i] *= 1000.0
-	}
+	floats.Scale(1000.0, cs)
 
 	// 応答係数
 	rft0, rfa0, rft1, rfa1, row := calc_response_factor_non_residential(cs, rs)
@@ -125,9 +99,7 @@ func create_for_unsteady_ground(cs []float64, rs []float64) *ResponseFactor {
 	rs = append(rs[:], 3.0/1.0)
 
 	// 単位変換 kJ/m2K -> J/m2K
-	for i := range cs {
-		cs[i] *= 1000.0
-	}
+	floats.Scale(1000.0, cs)
 
 	// 応答係数
 	rft0, rfa0, rft1, rfa1, row := calc_response_factor(true, cs, rs)
@@ -136,7 +108,7 @@ func create_for_unsteady_ground(cs []float64, rs []float64) *ResponseFactor {
 	// 土壌の計算は吸熱応答のみで計算するため、畳み込み積分に必要な指数項別応答係数はすべて０にする
 	// 貫流応答の初項は年平均気温掛かる係数であることから１とし、計算された貫流応答係数をすべて上書きする
 	rft0 = 1.0
-	rft1 = mat.NewVecDense(nRoot, nil)
+	rft1 = make([]float64, nRoot)
 
 	return NewResponseFactor(rft0, rfa0, rft1, rfa1, row)
 }
@@ -270,6 +242,7 @@ func get_step_reps_of_wall(C_i_k_p, R_i_k_p, laps, alp []float64, M int) (float6
 	CA := make([]float64, nroot)
 	CT := make([]float64, nroot)
 	for lngI := 0; lngI < nroot; lngI++ {
+		matFGA.RawRowView(lngI)
 		for lngJ := 0; lngJ < nlaps; lngJ++ {
 			CA[lngI] += matFGA.At(lngJ, lngI)
 			CT[lngI] += matFGT.At(lngJ, lngI)
@@ -279,15 +252,30 @@ func get_step_reps_of_wall(C_i_k_p, R_i_k_p, laps, alp []float64, M int) (float6
 	matCT := mat.NewVecDense(nroot, CT)
 
 	// 伝達関数の係数を計算
+	var matU_LU mat.LU
 	var matAA, matAT mat.VecDense
-	matAA.SolveVec(&matU, matCA)
-	matAT.SolveVec(&matU, matCT)
+	matU_LU.Factorize(&matU)
+	err1 := matU_LU.SolveVecTo(&matAA, false, matCA)
+	if err1 != nil {
+		panic(err1)
+	}
+	err2 := matU_LU.SolveVecTo(&matAT, false, matCT)
+	if err2 != nil {
+		panic(err2)
+	}
 
 	// 伝達関数の係数を一次元配列に変換
-	dblAT := matToSlice(&matAT)
-	dblAA := matToSlice(&matAA)
+	dblAT := matAT.RawVector()
+	dblAA := matAA.RawVector()
 
-	return dblAT0, dblAA0, dblAT, dblAA
+	if dblAT.Inc != 1 {
+		panic("matAT.RawVector().Inc != 1")
+	}
+	if dblAA.Inc != 1 {
+		panic("matAA.RawVector().Inc != 1")
+	}
+
+	return dblAT0, dblAA0, dblAT.Data, dblAA.Data
 }
 
 /*
@@ -347,18 +335,22 @@ func calc_transfer_function(C_i_k_p []float64, R_i_k_p []float64, laps float64) 
 //	laps: 時刻の配列
 //	alp: 温度時定数の配列
 //	M: 応答係数で作成する項数
-func get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p []float64, laps []float64, alp []float64, M int) (float64, float64, []float64, []float64, []float64, []float64) {
+func get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p []float64, laps []float64, alp []float64, weight float64) (float64, float64, []float64, []float64) {
 	// 四端子基本行列の初期化
 	matFi := make([]*mat.Dense, len(C_i_k_p))
 
 	// 吸熱、貫流の各伝達関数ベクトルの初期化
 	nlaps := len(laps)
-	matGA := mat.NewVecDense(nlaps, nil)
-	matGT := mat.NewVecDense(nlaps, nil)
+	matGA := make([]float64, nlaps)
+	matGT := make([]float64, nlaps)
 
 	// 単位貫流応答、単位吸熱応答の初期化
 	dblAT0 := 1.0
 	dblAA0 := _sum(R_i_k_p)
+
+	if nlaps == 0.0 {
+		return dblAT0, dblAA0, matGA, matGT
+	}
 
 	// GA(0), GT(0)
 	dblGA0 := dblAA0
@@ -403,8 +395,8 @@ func get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p []float64, laps []float64, 
 		}
 
 		// 吸熱、貫流の各伝達関数ベクトルの作成
-		matGA.SetVec(lngI, matFt.At(0, 1)/matFt.At(1, 1)-dblGA0)
-		matGT.SetVec(lngI, 1.0/matFt.At(1, 1)-dblGT0)
+		matGA[lngI] = matFt.At(0, 1)/matFt.At(1, 1) - dblGA0
+		matGT[lngI] = 1.0/matFt.At(1, 1) - dblGT0
 	}
 
 	// 伝達関数の係数を求めるための左辺行列を作成
@@ -421,8 +413,7 @@ func get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p []float64, laps []float64, 
 	for lngK := 0; lngK < nroot; lngK++ {
 		for lngJ := 0; lngJ < nroot; lngJ++ {
 			for lngI := 0; lngI < nlaps; lngI++ {
-				laps_2 := laps[lngI] * laps[lngI]
-				matU.Set(lngK, lngJ, matU.At(lngK, lngJ)+laps_2*matF.At(lngI, lngK)*matF.At(lngI, lngJ))
+				matU.Set(lngK, lngJ, matU.At(lngK, lngJ)+math.Pow(laps[lngI], weight)*matF.At(lngI, lngK)*matF.At(lngI, lngJ))
 			}
 		}
 	}
@@ -432,54 +423,37 @@ func get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p []float64, laps []float64, 
 	matCT := mat.NewVecDense(nroot, nil)
 	for lngK := 0; lngK < nroot; lngK++ {
 		for lngI := 0; lngI < nlaps; lngI++ {
-			laps_2_F := laps[lngI] * laps[lngI] * matF.At(lngI, lngK)
-			matCA.SetVec(lngK, matCA.At(lngK, 0)+laps_2_F*matGA.At(lngI, 0))
-			matCT.SetVec(lngK, matCT.At(lngK, 0)+laps_2_F*matGT.At(lngI, 0))
+			laps_w_F := math.Pow(laps[lngI], weight) * matF.At(lngI, lngK)
+			matCA.SetVec(lngK, matCA.At(lngK, 0)+laps_w_F*matGA[lngI])
+			matCT.SetVec(lngK, matCT.At(lngK, 0)+laps_w_F*matGT[lngI])
 		}
 	}
-
-	var matU_inv mat.Dense
-	matU_inv.Inverse(matU)
 
 	// 伝達関数の係数を計算
+	var matU_LU mat.LU
 	var matAA, matAT mat.VecDense
-	// err1 := matAA.SolveVec(matU, matCA)
-	// err2 := matAT.SolveVec(matU, matCT)
-	matAA.MulVec(&matU_inv, matCA)
-	matAT.MulVec(&matU_inv, matCT)
-
-	// if err1 != nil || err2 != nil {
-	// 	panic("Error during matrix solving")
-	// }
+	matU_LU.Factorize(matU)
+	err1 := matU_LU.SolveVecTo(&matAA, false, matCA)
+	if err1 != nil {
+		panic(err1)
+	}
+	err2 := matU_LU.SolveVecTo(&matAT, false, matCT)
+	if err2 != nil {
+		panic(err2)
+	}
 
 	// 伝達関数の係数を一次元配列に変換
-	dblAT := matToSlice(&matAT)
-	dblAA := matToSlice(&matAA)
+	dblAT := matAT.RawVector()
+	dblAA := matAA.RawVector()
 
-	dblATstep := make([]float64, M)
-	dblAAstep := make([]float64, M)
-	for lngJ := 0; lngJ < M; lngJ++ {
-		dblATstep[lngJ] = dblAT0
-		dblAAstep[lngJ] = dblAA0
-		for lngK, root := range alp {
-			eterm := math.Exp(-root * float64(lngJ) * 900)
-			dblATstep[lngJ] += dblAT[lngK] * eterm
-			dblAAstep[lngJ] += dblAA[lngK] * eterm
-		}
+	if dblAT.Inc != 1 {
+		panic("matAT.RawVector().Inc != 1")
+	}
+	if dblAA.Inc != 1 {
+		panic("matAA.RawVector().Inc != 1")
 	}
 
-	return dblAT0, dblAA0, dblAT, dblAA, dblATstep, dblAAstep
-}
-
-func matToSlice(matrix *mat.VecDense) []float64 {
-	rows, cols := matrix.Dims()
-	slice := make([]float64, rows*cols)
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			slice[i*cols+j] = matrix.At(i, j)
-		}
-	}
-	return slice
+	return dblAT0, dblAA0, dblAT.Data, dblAA.Data
 }
 
 // 二等辺三角波励振の応答係数、指数項別応答係数、公比の計算
@@ -499,8 +473,8 @@ func get_RFTRI(alp []float64, AT0 float64, AA0 float64, AT []float64, AA []float
 	for i, val := range dblTemp {
 		dblE1[i] = (1.0 - math.Exp(-val)) / val
 	}
-	dblRFT[0] = AT0 + _sum(multiply(dblE1, AT))
-	dblRFA[0] = AA0 + _sum(multiply(dblE1, AA))
+	dblRFT[0] = AT0 + floats.Dot(dblE1, AT)
+	dblRFA[0] = AA0 + floats.Dot(dblE1, AA)
 
 	// 二等辺三角波励振の応答係数の二項目以降を計算
 	for lngJ := 1; lngJ < M; lngJ++ {
@@ -508,13 +482,14 @@ func get_RFTRI(alp []float64, AT0 float64, AA0 float64, AT []float64, AA []float
 			temp := (1.0 - math.Exp(-val))
 			dblE1[i] = temp * temp * math.Exp(-(float64(lngJ)-1.0)*val) / val
 		}
-		dblRFT[lngJ] = -_sum(multiply(dblE1, AT))
-		dblRFA[lngJ] = -_sum(multiply(dblE1, AA))
+		dblRFT[lngJ] = -floats.Dot(dblE1, AT)
+		dblRFA[lngJ] = -floats.Dot(dblE1, AA)
 	}
 
 	// 指数項別応答係数、公比を計算
 	for i, val := range dblTemp {
-		dblE1[i] = (1.0 - math.Exp(-val)) * (1.0 - math.Exp(-val)) / val
+		temp := (1.0 - math.Exp(-val))
+		dblE1[i] = temp * temp / val
 	}
 	dblRFT1 := make([]float64, len(AT))
 	dblRFA1 := make([]float64, len(AA))
@@ -530,16 +505,8 @@ func get_RFTRI(alp []float64, AT0 float64, AA0 float64, AT []float64, AA []float
 	return dblRFT, dblRFA, dblRFT1, dblRFA1, dblRow
 }
 
-func multiply(slice1, slice2 []float64) []float64 {
-	result := make([]float64, len(slice1))
-	for i := range slice1 {
-		result[i] = slice1[i] * slice2[i]
-	}
-	return result
-}
-
 // 応答係数
-func calc_response_factor(is_ground bool, cs, rs []float64) (float64, float64, *mat.VecDense, *mat.VecDense, *mat.VecDense) {
+func calc_response_factor(is_ground bool, cs, rs []float64) (float64, float64, []float64, []float64, []float64) {
 	NcalTime := 50                  // 応答係数を作成する時間数[h]
 	M := int(NcalTime*3600/900) + 1 //応答係数で作成する項数
 
@@ -566,11 +533,7 @@ func calc_response_factor(is_ground bool, cs, rs []float64) (float64, float64, *
 	copy(RFA1_12, RFA1)
 	copy(Row_12, Row)
 
-	matRFT1 := mat.NewVecDense(len(RFT1_12), RFT1_12)
-	matRFA1 := mat.NewVecDense(len(RFA1_12), RFA1_12)
-	matRow := mat.NewVecDense(len(Row_12), Row_12)
-
-	return RFT0, RFA0, matRFT1, matRFA1, matRow
+	return RFT0, RFA0, RFT1_12, RFA1_12, Row_12
 }
 
 func logspace(start, stop float64, num int, base float64) []float64 {
@@ -589,23 +552,73 @@ func logspace(start, stop float64, num int, base float64) []float64 {
 }
 
 // 応答係数（非住宅用　住宅との相違は固定根と重み付き最小二乗法を使用する点）
-func calc_response_factor_non_residential(C_i_k_p, R_i_k_p []float64) (float64, float64, *mat.VecDense, *mat.VecDense, *mat.VecDense) {
+func calc_response_factor_non_residential(C_i_k_p, R_i_k_p []float64) (float64, float64, []float64, []float64, []float64) {
 	NcalTime := 50                           // 応答係数を作成する時間数[h]
 	M := int(float64(NcalTime*3600)/900) + 1 // 応答係数で作成する項数
 
 	// 固定根, 初項 1/(86400*365)、終項 1/600、項数 10
 	first_term := math.Log10(1.0 / (86400.0 * 365.0))
-	last_term := math.Log10(1.0 / 600.0)
+	last_term := math.Log10(1.0 / 900.0)
 	alpha_m := logspace(first_term, last_term, 10, 10)
+	alpha_m_temp := make([]float64, len(alpha_m))
+	copy(alpha_m_temp, alpha_m)
+
+	nroot := len(alpha_m) // 根の数
+	// 実際に応答係数計算に使用する固定根を選定する
+	GA := make([]float64, nroot)
+	GT := make([]float64, nroot)
+	// 固定根をラプラスパラメータとして伝達関数を計算
+	for i, lap := range alpha_m_temp {
+		GA[i], GT[i] = calc_transfer_function(C_i_k_p, R_i_k_p, lap)
+	}
+	GT2 := make([]float64, nroot+2)
+	// 配列0に定常の伝達関数を入力
+	GT2[0] = 1.0
+	// 配列の最後にs=∞の伝達関数を入力
+	GT2[nroot+2-1] = 0.0
+	// それ以外に計算した伝達関数を代入
+	for i := 0; i < nroot; i++ {
+		GT2[i+1] = GT[i]
+	}
+
+	// 採用する固定根の場合1
+	is_adopts := make([]float64, nroot)
+	for i := 0; i <= nroot+1; i++ {
+		for j := i + 1; j < nroot+1; j++ {
+			// 伝達関数が3%以上変化した根だけ採用する
+			if math.Abs(GT2[j]-GT2[i]) > 0.03 {
+				is_adopts[j-1] = 1.0
+				i = j - 1
+				break
+			}
+		}
+	}
+
+	//採用する根を数える
+	adopt_nroot := floats.Sum(is_adopts)
+	if adopt_nroot > 0.0 {
+		// 不採用の固定根を削除
+		floats.Reverse(is_adopts)
+		for i, adopts := range is_adopts {
+			if adopts == 0.0 {
+				alpha_m_temp = append(alpha_m_temp[:nroot-i-1], alpha_m_temp[nroot-i:]...)
+			}
+		}
+	} else {
+		alpha_m_temp = []float64{}
+	}
+
+	// 採用する根を数える
+	//adopt_nroot := floats.Sum(is_adopts)
 
 	// ラプラス変数の設定
-	laps := get_laps(alpha_m)
+	laps := get_laps(alpha_m_temp)
 
 	// 単位応答の計算
-	AT0, AA0, AT, AA, _, _ := get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p, laps, alpha_m, M)
+	AT0, AA0, AT, AA := get_step_reps_of_wall_weighted(C_i_k_p, R_i_k_p, laps, alpha_m_temp, 0.0)
 
 	// 二等辺三角波励振の応答係数、指数項別応答係数、公比の計算
-	RFT, RFA, RFT1, RFA1, Row := get_RFTRI(alpha_m, AT0, AA0, AT, AA, M)
+	RFT, RFA, RFT1, RFA1, Row := get_RFTRI(alpha_m_temp, AT0, AA0, AT, AA, M)
 
 	RFT0 := RFT[0] // 貫流応答係数の初項
 	RFA0 := RFA[0] // 吸熱応答係数の初項
@@ -614,13 +627,16 @@ func calc_response_factor_non_residential(C_i_k_p, R_i_k_p []float64) (float64, 
 	RFT1_12 := make([]float64, 12)
 	RFA1_12 := make([]float64, 12)
 	Row_12 := make([]float64, 12)
-	copy(RFT1_12, RFT1)
-	copy(RFA1_12, RFA1)
-	copy(Row_12, Row)
 
-	matRFT1 := mat.NewVecDense(len(RFT1_12), RFT1_12)
-	matRFA1 := mat.NewVecDense(len(RFA1_12), RFA1_12)
-	matRow := mat.NewVecDense(len(Row_12), Row_12)
+	for i, alpha := range alpha_m {
+		for j, alpha_temp := range alpha_m_temp {
+			if alpha == alpha_temp {
+				RFT1_12[i] = RFT1[j]
+				RFA1_12[i] = RFA1[j]
+				Row_12[i] = Row[j]
+			}
+		}
+	}
 
-	return RFT0, RFA0, matRFT1, matRFA1, matRow
+	return RFT0, RFA0, RFT1_12, RFA1_12, Row_12
 }

@@ -1,15 +1,12 @@
 package main
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"math"
-	"os"
 	"path/filepath"
-	"strconv"
 
 	"gonum.org/v1/gonum/floats"
 )
@@ -145,66 +142,6 @@ func get_schedule(number_of_occupants NumberOfOccupants, s_name_is []string, a_f
 		ac_demand_is_ns,
 		ac_setting_is_ns,
 	)
-}
-
-/*
-スケジュールをCSV形式で保存する
-
-Args:
-	output_data_dir: CSV形式で保存するファイルのディレクトリ
-*/
-func (self *Schedule) save_schedule(output_data_dir string) {
-
-	f := func(varname, filename string, data *ScheduleData) {
-		path := filepath.Join(output_data_dir, filename)
-		log.Printf("Save %s to `%s`", varname, path)
-
-		// float64の2次元スライスを文字列の2次元スライスに変換
-		r, c := data.BatchSize, len(data.Data)/data.BatchSize
-		stringData := make([][]string, r)
-		for i := 0; i < r; i++ {
-			stringData[i] = make([]string, c)
-			for j := 0; j < c; j++ {
-				value := data.Get(j)[i]
-				stringData[i][j] = strconv.FormatFloat(value, 'f', -1, 64)
-			}
-		}
-
-		// CSVファイルを作成
-		file, err := os.Create(path)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-		defer file.Close()
-
-		// CSVライターを作成
-		writer := csv.NewWriter(file)
-
-		// CSVファイルにデータを書き込み
-		err = writer.WriteAll(stringData)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-
-		writer.Flush()
-	}
-
-	// ステップnの室iにおける局所換気量, m3/s, [i, 8760*4]
-	f("v_mec_vent_local_is_ns", "mid_data_local_vent.csv", self.v_mec_vent_local_is_ns)
-
-	// ステップnの室iにおける内部発熱, W, [8760*4]
-	f("q_gen_is_ns", "mid_data_heat_generation.csv", self.q_gen_is_ns)
-
-	// ステップnの室iにおける人体発湿を除く内部発湿, kg/s, [8760*4]
-	f("x_gen_is_ns", "mid_data_moisture_generation.csv", self.x_gen_is_ns)
-
-	// ステップnの室iにおける在室人数, [8760*4]
-	f("n_hum_is_ns", "mid_data_occupants.csv", self.n_hum_is_ns)
-
-	// ステップnの室iにおける空調需要, [8760*4]
-	f("ac_demand_is_ns", "mid_data_ac_demand.csv", self.ac_demand_is_ns)
 }
 
 /*365日分のカレンダーを取得する。

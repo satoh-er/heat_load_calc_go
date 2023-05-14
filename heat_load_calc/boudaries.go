@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -89,7 +89,7 @@ type Boundary struct {
 	h_s_r float64
 
 	// 相当外気温度, ℃, [8760 * 4]
-	theta_o_sol mat.Vector
+	theta_o_sol *mat.VecDense
 
 	// 透過日射熱取得, W, [8760*4]
 	q_trs_sol []float64
@@ -109,7 +109,7 @@ type Boundary struct {
 
 type Boundaries struct {
 	bss                   []*Boundary // 境界
-	p_is_js               mat.Matrix  // 室iと境界jの関係を表す係数（境界jから室iへの変換）, [i, j]
+	p_is_js               *mat.Dense  // 室iと境界jの関係を表す係数（境界jから室iへの変換）, [i, j]
 	q_trs_sol_is_ns       mat.Matrix  // ステップ n の室 i における窓の透過日射熱取得, W, [n]
 	n_b                   int         // 境界の数
 	n_ground              int         // 地盤の数
@@ -156,14 +156,14 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 
 	_areas := mat.NewVecDense(len(bs_list), nil)
 	_connected_room_ids := make([]int, len(bs_list))
-	h_c_js := mat.NewVecDense(len(bs_list), nil)
+	h_c_js := make([]float64, len(bs_list))
 	for j := 0; j < len(bs_list); j++ {
 		b := bs_list[j].(map[string]interface{})
 		_areas.SetVec(j, b["area"].(float64))
 		_connected_room_ids[j] = int(b["connected_room_id"].(float64))
 
 		// 境界jの室内側表面対流熱伝達率, W/m2K, [J, 1]
-		h_c_js.SetVec(j, b["h_c"].(float64))
+		h_c_js[j] = b["h_c"].(float64)
 	}
 
 	// 境界jの室内側表面放射熱伝達率, W/m2K, [J, 1]
@@ -176,7 +176,7 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	bss := make([]*Boundary, len(bs_list))
 	for j := 0; j < len(bs_list); j++ {
 		b := bs_list[j].(map[string]interface{})
-		log.Printf("境界%d - %s (%s)", j, b["name"].(string), b["boundary_type"].(string))
+		//log.Printf("境界%d - %s (%s)", j, b["name"].(string), b["boundary_type"].(string))
 		bss[j] = _get_boundary(b, h_c_js, h_s_r_js, w, n_rm)
 	}
 
@@ -310,7 +310,7 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	// 境界jの吸熱応答係数の初項, m2K/W, [j, 1]
 	rfa0 := make([]float64, len(self.bss))
 	for i, bs := range self.bss {
-		rfa0[i] = bs.rf.rfa0()
+		rfa0[i] = bs.rf.rfa0
 	}
 	bs.phi_a0_js = mat.NewVecDense(len(rfa0), rfa0)
 
@@ -318,16 +318,14 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	rfa1 := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
 		rfa1[i] = make([]float64, 12)
-		for j := 0; j < 12; j++ {
-			rfa1[i][j] = self.bss[i].rf.rfa1().AtVec(j)
-		}
+		copy(rfa1[i], self.bss[i].rf.rfa1)
 	}
 	bs.phi_a1_js_ms = rfa1
 
 	// 境界jの貫流応答係数の初項, [j, 1]
 	rft0 := make([]float64, len(self.bss))
 	for i, bs := range self.bss {
-		rft0[i] = bs.rf.rft0()
+		rft0[i] = bs.rf.rft0
 	}
 	bs.phi_t0_js = mat.NewVecDense(len(rft0), rft0)
 
@@ -335,9 +333,7 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	rft1 := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
 		rft1[i] = make([]float64, 12)
-		for j := 0; j < 12; j++ {
-			rft1[i][j] = self.bss[i].rf.rft1().AtVec(j)
-		}
+		copy(rft1[i], self.bss[i].rf.rft1)
 	}
 	bs.phi_t1_js_ms = rft1
 
@@ -345,18 +341,14 @@ func NewBoundaries(id_rm_is []int, bs_list []interface{}, w *Weather) *Boundarie
 	row := make([][]float64, self.n_b)
 	for i := 0; i < self.n_b; i++ {
 		row[i] = make([]float64, 12)
-		for j := 0; j < 12; j++ {
-			row[i][j] = self.bss[i].rf.row().AtVec(j)
-		}
+		copy(row[i], self.bss[i].rf.row)
 	}
 	bs.r_js_ms = row
 
 	// ステップ n の境界 j における相当外気温度, ℃, [j, n+1]
 	theta := mat.NewDense(self.n_b, self.bss[0].theta_o_sol.Len(), nil)
 	for i := 0; i < self.n_b; i++ {
-		for j := 0; j < 12; j++ {
-			theta.Set(i, j, self.bss[i].theta_o_sol.AtVec(j))
-		}
+		theta.SetRow(i, self.bss[i].theta_o_sol.RawVector().Data)
 	}
 	bs.theta_o_eqv_js_ns = theta
 
@@ -380,8 +372,8 @@ Returns
 */
 func _get_boundary(
 	b map[string]interface{},
-	h_c_js mat.Vector,
-	h_s_r_js mat.Vector,
+	h_c_js []float64,
+	h_s_r_js []float64,
 	w *Weather,
 	n_rm int,
 ) *Boundary {
@@ -455,7 +447,7 @@ func _get_boundary(
 	h_s_c := b["h_c"].(float64)
 
 	// 室内側表面放射熱伝達率, W/m2K
-	h_s_r := h_s_r_js.AtVec(boundary_id)
+	h_s_r := h_s_r_js[boundary_id]
 
 	// 日射の有無 (True当たる/False 当たらない)
 	// 境界の種類が"external_general_part", "external_transparent_part", "external_opaque_part"の場合に定義される。
@@ -469,7 +461,7 @@ func _get_boundary(
 	}
 
 	var simulation_u_value float64
-	var theta_o_eqv_j_ns mat.Vector
+	var theta_o_eqv_j_ns *mat.VecDense
 	var rf *ResponseFactor
 	var q_trs_sol []float64
 
@@ -492,8 +484,8 @@ func _get_boundary(
 			rs_sum += rs[i]
 		}
 
-		rear_h_c := h_c_js.AtVec(int(b["rear_surface_boundary_id"].(float64)))
-		rear_h_r := h_s_r_js.AtVec(int(b["rear_surface_boundary_id"].(float64)))
+		rear_h_c := h_c_js[int(b["rear_surface_boundary_id"].(float64))]
+		rear_h_r := h_s_r_js[int(b["rear_surface_boundary_id"].(float64))]
 
 		r_o := 1.0 / (rear_h_c + rear_h_r)
 
@@ -691,7 +683,7 @@ func _get_boundary(
 	}
 
 	// Boundary の数
-	n_b := h_c_js.Len()
+	n_b := len(h_c_js)
 
 	k_ei_js_j := make([]float64, n_b)
 
@@ -774,13 +766,13 @@ func get_q_trs_sol_is_ns(n_rm int, bss []*Boundary) *mat.Dense {
 	n := len(bss[0].q_trs_sol)
 	q_trs_sol_is_ns := mat.NewDense(n_rm, n, nil)
 	for i := 0; i < n_rm; i++ {
-		data := mat.NewVecDense(n, nil)
+		data := make([]float64, n)
 		for _, bs := range bss {
 			if bs.connected_room_id == i {
-				data.AddVec(data, mat.NewVecDense(n, bs.q_trs_sol))
+				floats.Add(data, bs.q_trs_sol)
 			}
 		}
-		q_trs_sol_is_ns.SetRow(i, data.RawVector().Data)
+		q_trs_sol_is_ns.SetRow(i, data)
 	}
 	return q_trs_sol_is_ns
 }

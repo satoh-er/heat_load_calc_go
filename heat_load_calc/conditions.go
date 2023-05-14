@@ -1,9 +1,5 @@
 package main
 
-import (
-	"gonum.org/v1/gonum/mat"
-)
-
 type Conditions struct {
 	operation_mode_is_n     []OperationMode // ステップnにおける室iの運転状態, [i, 1]
 	theta_r_is_n            []float64       //ステップnにおける室iの空気温度, degree C, [i, 1]
@@ -44,9 +40,9 @@ func NewConditions(
 }
 
 type GroundConditions struct {
-	theta_dsh_srf_a_js_ms_n [][]float64   // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
-	theta_dsh_srf_t_js_ms_n [][]float64   // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
-	q_srf_js_n              *mat.VecDense // ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
+	theta_dsh_srf_a_js_ms_n [][]float64 // ステップnの境界jにおける項別公比法の指数項mの吸熱応答の項別成分, degree C, [j, m] (m=12)
+	theta_dsh_srf_t_js_ms_n [][]float64 // ステップnの境界jにおける項別公比法の指数項mの貫流応答の項別成分, degree C, [j, m] (m=12)
+	q_srf_js_n              []float64   // ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 }
 
 func initialize_conditions(n_spaces, n_bdries int) *Conditions {
@@ -159,7 +155,7 @@ func initialize_ground_conditions(n_grounds int) *GroundConditions {
 
 	// ステップnの境界jにおける表面熱流（壁体吸熱を正とする）, W/m2, [j, 1]
 	// 初期値を0.0W/m2とする。
-	q_srf_js_n0 := mat.NewVecDense(n_grounds, nil)
+	q_srf_js_n0 := make([]float64, n_grounds)
 
 	return &GroundConditions{
 		theta_dsh_srf_a_js_ms_n: theta_dsh_srf_a_js_ms_n0,
@@ -173,7 +169,7 @@ func update_conditions_by_ground_conditions(is_ground []bool, c *Conditions, gc 
 	for i, ground := range is_ground {
 		if ground {
 			copy(c.theta_dsh_srf_a_js_ms_n[i], gc.theta_dsh_srf_a_js_ms_n[gidx])
-			c.q_s_js_n[i] = gc.q_srf_js_n.AtVec(gidx)
+			c.q_s_js_n[i] = gc.q_srf_js_n[gidx]
 			gidx++
 		}
 	}

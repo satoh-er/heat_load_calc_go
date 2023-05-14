@@ -162,11 +162,11 @@ func NewSequence(
 	}
 }
 
-func (s *Sequence) run_tick(n int, nn int, c_n *Conditions, recorder *Recorder) *Conditions {
+func (s *Sequence) run_tick(n int, nn int, nn_plus int, c_n *Conditions, recorder *Recorder) *Conditions {
 	ss := s.pre_calc_parameters
 	delta_t := s._delta_t
 
-	return _run_tick(s, n, nn, delta_t, ss, c_n, recorder)
+	return _run_tick(s, n, nn, nn_plus, delta_t, ss, c_n, recorder)
 }
 
 func (s *Sequence) run_tick_ground(gc_n *GroundConditions, n int, nn int) *GroundConditions {
@@ -240,39 +240,25 @@ func get_f_crx_js_ns(
 	k_eo_js mat.Vector,
 	theta_o_eqv_js_ns mat.Matrix,
 ) *mat.Dense {
-	// phi_a0_js*q_s_sol_js_ns
-	var temp1 mat.Dense
-	temp1.Apply(func(i, j int, v float64) float64 {
-		return phi_a0_js.AtVec(i) * v
+	// q_s_sol_js_ns/(h_s_c_js+h_s_r_js)
+	var temp2 mat.Dense
+	temp2.Apply(func(j int, i int, v float64) float64 {
+		return v / (h_s_c_js.AtVec(j) + h_s_r_js.AtVec(j))
 	}, q_s_sol_js_ns)
 
-	// phi_t0_js/(h_s_c_js+h_s_r_js)
-	var temp2 mat.VecDense
-	temp2.AddVec(h_s_c_js, h_s_r_js)
-	temp2.DivElemVec(phi_t0_js, &temp2)
-
-	// temp2 * np.dot(k_ei_js_js, q_s_sol_js_ns)
+	// np.dot(k_ei_js_js, temp2)
 	var temp3 mat.Dense
-	temp3.Mul(k_ei_js_js, q_s_sol_js_ns)
-	temp3.Apply(func(i, j int, v float64) float64 {
-		return temp2.AtVec(i) * v
-	}, &temp3)
+	temp3.Mul(k_ei_js_js, &temp2)
 
-	// phi_t0_js * k_eo_js
-	var temp4 mat.VecDense
-	temp4.AddVec(phi_t0_js, k_eo_js)
+	// phi_a0_js*q_s_sol_js_ns + phi_t0js*temp3+phi_t0_js*theta_o_eqv_js_ns*k_eo_js
+	var result mat.Dense
+	result.Apply(func(j, i int, v float64) float64 {
+		return phi_a0_js.AtVec(j)*v +
+			phi_t0_js.AtVec(j)*temp3.At(j, i) +
+			phi_t0_js.AtVec(j)*theta_o_eqv_js_ns.At(j, i)*k_eo_js.AtVec(j)
+	}, q_s_sol_js_ns)
 
-	// temp4 * theta_o_eqv_js_ns
-	var temp5 mat.Dense
-	temp5.Apply(func(i, j int, v float64) float64 {
-		return temp4.AtVec(i) * v
-	}, theta_o_eqv_js_ns)
-
-	// temp1 + temp3 + temp5
-	var temp6 mat.Dense
-	temp6.Add(&temp1, &temp3)
-	temp6.Add(&temp6, &temp5)
-	return &temp6
+	return &result
 }
 
 /*
@@ -302,21 +288,21 @@ func get_f_fia_js_is(
 
 	// phi_a0_js * h_s_c_js * p_js_is
 	var temp1 mat.Dense
-	temp1.Apply(func(i, j int, v float64) float64 {
-		return phi_a0_js.AtVec(i) * h_s_c_js.AtVec(j) * v
+	temp1.Apply(func(j, i int, v float64) float64 {
+		return phi_a0_js.AtVec(j) * h_s_c_js.AtVec(j) * v
 	}, p_js_is)
 
 	// np.dot(k_ei_js_js, p_js_is) * phi_t0_js * h_s_c_js / (h_s_c_js + h_s_r_js)
 	var temp2 mat.Dense
 	temp2.Mul(k_ei_js_js, p_js_is)
-	temp2.Apply(func(i, j int, v float64) float64 {
-		return v * phi_t0_js.AtVec(i) * h_s_c_js.AtVec(j) / (h_s_c_js.AtVec(j) + h_s_r_js.AtVec(j))
+	temp2.Apply(func(j, i int, v float64) float64 {
+		return v * phi_t0_js.AtVec(j) * h_s_c_js.AtVec(j) / (h_s_c_js.AtVec(j) + h_s_r_js.AtVec(j))
 	}, &temp2)
 
 	// phi_t0_js * k_s_r_js_is
 	var temp3 mat.Dense
-	temp3.Apply(func(i, j int, v float64) float64 {
-		return phi_t0_js.AtVec(i) * v
+	temp3.Apply(func(j, i int, v float64) float64 {
+		return phi_t0_js.AtVec(j) * v
 	}, k_s_r_js_is)
 
 	temp1.Add(&temp1, &temp2)
@@ -592,12 +578,12 @@ Args:
 Returns:
 	次の時刻にわたす状態量
 */
-func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParameters, c_n *Conditions, recorder *Recorder) *Conditions {
+func _run_tick(self *Sequence, n int, nn int, nn_plus int, delta_t float64, ss *PreCalcParameters, c_n *Conditions, recorder *Recorder) *Conditions {
 
 	// ----------- 人体発熱・人体発湿 -----------
 
 	// ステップnからステップn+1における室iの1人あたりの人体発熱, W, [i, 1]
-	q_hum_psn_is_n := get_q_hum_psn_is_n_slice(c_n.theta_r_is_n)
+	q_hum_psn_is_n := get_q_hum_psn_is_n(c_n.theta_r_is_n)
 
 	// ステップ n からステップ n+1 における室 i の人体発熱, W, [i, 1]
 	q_hum_is_n := get_q_hum_is_n(
@@ -618,7 +604,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.bs.k_ei_js_js,
 		c_n.theta_ei_js_n,
 		self.bs.k_eo_js,
-		self.bs.theta_o_eqv_js_ns.ColView(nn),
+		self.bs.theta_o_eqv_js_ns.ColView(nn_plus),
 		self.bs.k_s_r_js,
 		c_n.theta_r_is_n,
 	)
@@ -626,7 +612,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	// ステップnの室iにおけるすきま風量, m3/s, [i, 1]
 	v_leak_is_n := self.building.get_v_leak_is_n(
 		c_n.theta_r_is_n,
-		self.weather.theta_o_ns_plus[nn],
+		self.weather.theta_o_ns_plus[nn_plus],
 		self.rms.v_rm_is,
 	)
 
@@ -671,16 +657,16 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.rms.v_rm_is,
 		self.rms.c_sh_frt_is,
 		delta_t,
-		ss.f_wsc_js_ns.ColView(nn+1),
+		ss.f_wsc_js_ns.ColView(nn_plus+1),
 		f_wsv_js_n_pls,
 		self.rms.g_sh_frt_is,
 		self.bs.h_s_c_js,
 		self.bs.p_is_js,
 		self.scd.q_gen_is_ns.Get(nn),
 		q_hum_is_n,
-		ss.q_sol_frt_is_ns.(mat.ColViewer).ColView(nn),
+		ss.q_sol_frt_is_ns.(mat.ColViewer).ColView(nn_plus),
 		c_n.theta_frt_is_n,
-		self.weather.theta_o_ns_plus[nn+1],
+		self.weather.theta_o_ns_plus[nn_plus+1],
 		c_n.theta_r_is_n,
 		v_vent_out_non_nv_is_n,
 		self.rms.v_vent_ntr_set_is,
@@ -705,7 +691,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	// ステップn+1における室iの係数 XC, [i, 1]
 	f_xc_is_n_pls := get_f_xc_is_n_pls(
 		ss.f_mrt_hum_is_js,
-		ss.f_wsc_js_ns.ColView(nn+1),
+		ss.f_wsc_js_ns.ColView(nn_plus+1),
 		f_wsv_js_n_pls,
 		ss.f_xot_is_is_n_pls,
 		ss.k_r_is_n,
@@ -738,7 +724,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		c_n.x_frt_is_n,
 		self.scd.x_gen_is_ns.Get(nn),
 		x_hum_is_n,
-		self.weather.x_o_ns_plus.AtVec(nn+1),
+		self.weather.x_o_ns_plus.AtVec(nn_plus+1),
 		c_n.x_r_is_n,
 		v_vent_out_non_nv_is_n,
 		self.rms.v_vent_ntr_set_is,
@@ -765,7 +751,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		f_brm_ot_nv_is_is_n_pls,
 	)
 
-	_f_xc_is_n_pls := mat.NewVecDense(len(f_xc_is_n_pls), nil)
+	_f_xc_is_n_pls := mat.NewVecDense(len(f_xc_is_n_pls), f_xc_is_n_pls)
 
 	var theta_r_ntr_non_nv_is_n_pls, theta_r_ntr_nv_is_n_pls mat.VecDense
 	theta_r_ntr_non_nv_is_n_pls.MulVec(ss.f_xot_is_is_n_pls, theta_r_ot_ntr_non_nv_is_n_pls)
@@ -775,10 +761,10 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 
 	var theta_s_ntr_non_nv_js_n_pls, theta_s_ntr_nv_js_n_pls mat.VecDense
 	theta_s_ntr_non_nv_js_n_pls.MulVec(ss.f_wsr_js_is, &theta_r_ntr_non_nv_is_n_pls)
-	theta_s_ntr_non_nv_js_n_pls.AddVec(&theta_s_ntr_non_nv_js_n_pls, ss.f_wsc_js_ns.ColView(nn+1))
+	theta_s_ntr_non_nv_js_n_pls.AddVec(&theta_s_ntr_non_nv_js_n_pls, ss.f_wsc_js_ns.ColView(nn_plus+1))
 	theta_s_ntr_non_nv_js_n_pls.AddVec(&theta_s_ntr_non_nv_js_n_pls, f_wsv_js_n_pls)
 	theta_s_ntr_nv_js_n_pls.MulVec(ss.f_wsr_js_is, &theta_r_ntr_nv_is_n_pls)
-	theta_s_ntr_nv_js_n_pls.AddVec(&theta_s_ntr_nv_js_n_pls, ss.f_wsc_js_ns.ColView(nn+1))
+	theta_s_ntr_nv_js_n_pls.AddVec(&theta_s_ntr_nv_js_n_pls, ss.f_wsc_js_ns.ColView(nn_plus+1))
 	theta_s_ntr_nv_js_n_pls.AddVec(&theta_s_ntr_nv_js_n_pls, f_wsv_js_n_pls)
 
 	var theta_mrt_hum_ntr_non_nv_is_n_pls, theta_mrt_hum_ntr_nv_is_n_pls mat.VecDense
@@ -829,6 +815,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 				f_h_wgt_is_is_n.Set(i, j, f_h_wgt_nv_is_is_n.At(i, j))
 			}
 			v_vent_ntr_is_n[i] = self.rms.v_vent_ntr_set_is[i]
+			f_brc_ot_is_n_pls[i] = f_brc_ot_nv_is_n_pls.AtVec(i)
 			f_h_cst_is_n[i] = f_h_cst_nv_is_n.AtVec(i)
 			theta_r_ot_ntr_is_n_pls[i] = theta_r_ot_ntr_nv_is_n_pls.AtVec(i)
 			theta_r_ntr_is_n_pls[i] = theta_r_ntr_nv_is_n_pls.AtVec(i)
@@ -841,6 +828,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 				f_h_wgt_is_is_n.Set(i, j, f_h_wgt_non_nv_is_is_n.At(i, j))
 			}
 			v_vent_ntr_is_n[i] = 0.0
+			f_brc_ot_is_n_pls[i] = f_brc_ot_non_nv_is_n_pls.AtVec(i)
 			f_h_cst_is_n[i] = f_h_cst_non_nv_is_n.AtVec(i)
 			theta_r_ot_ntr_is_n_pls[i] = theta_r_ot_ntr_non_nv_is_n_pls.AtVec(i)
 			theta_r_ntr_is_n_pls[i] = theta_r_ntr_non_nv_is_n_pls.AtVec(i)
@@ -949,7 +937,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	// ステップ n+1 における境界 j の表面温度, degree C, [j, 1]
 	theta_s_js_n_pls := get_theta_s_js_n_pls(
 		f_wsb_js_is_n_pls,
-		ss.f_wsc_js_ns.ColView(nn+1),
+		ss.f_wsc_js_ns.ColView(nn_plus+1),
 		ss.f_wsr_js_is,
 		f_wsv_js_n_pls,
 		l_rs_is_n,
@@ -962,7 +950,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.rms.c_sh_frt_is,
 		delta_t,
 		self.rms.g_sh_frt_is,
-		ss.q_sol_frt_is_ns.(mat.ColViewer).ColView(nn),
+		ss.q_sol_frt_is_ns.(mat.ColViewer).ColView(nn_plus),
 		c_n.theta_frt_is_n,
 		theta_r_is_n_pls,
 	)
@@ -983,7 +971,7 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 		self.bs.h_s_r_js,
 		l_rs_is_n,
 		self.bs.p_js_is,
-		ss.q_s_sol_js_ns.(mat.ColViewer).ColView(nn+1),
+		ss.q_s_sol_js_ns.(mat.ColViewer).ColView(nn_plus+1),
 		theta_r_is_n_pls,
 		theta_s_js_n_pls,
 	)
@@ -1066,18 +1054,30 @@ func _run_tick(self *Sequence, n int, nn int, delta_t float64, ss *PreCalcParame
 	//         v_vent_ntr_is_n=v_vent_ntr_is_n
 	//     )
 
-	return NewConditions(
-		operation_mode_is_n,
-		theta_r_is_n_pls,
-		theta_mrt_hum_is_n_pls,
-		x_r_is_n_pls,
-		theta_dsh_s_a_js_ms_n_pls,
-		theta_dsh_s_t_js_ms_n_pls,
-		q_s_js_n_pls,
-		theta_frt_is_n_pls,
-		x_frt_is_n_pls,
-		theta_ei_js_n_pls,
-	)
+	c_n.operation_mode_is_n = operation_mode_is_n
+	c_n.theta_r_is_n = theta_r_is_n_pls
+	c_n.theta_mrt_hum_is_n = theta_mrt_hum_is_n_pls
+	c_n.x_r_is_n = x_r_is_n_pls
+	c_n.theta_dsh_srf_a_js_ms_n = theta_dsh_s_a_js_ms_n_pls
+	c_n.theta_dsh_srf_t_js_ms_n = theta_dsh_s_t_js_ms_n_pls
+	c_n.q_s_js_n = q_s_js_n_pls
+	c_n.theta_frt_is_n = theta_frt_is_n_pls
+	c_n.x_frt_is_n = x_frt_is_n_pls
+	c_n.theta_ei_js_n = theta_ei_js_n_pls
+
+	return c_n
+	// return NewConditions(
+	// 	operation_mode_is_n,
+	// 	theta_r_is_n_pls,
+	// 	theta_mrt_hum_is_n_pls,
+	// 	x_r_is_n_pls,
+	// 	theta_dsh_s_a_js_ms_n_pls,
+	// 	theta_dsh_s_t_js_ms_n_pls,
+	// 	q_s_js_n_pls,
+	// 	theta_frt_is_n_pls,
+	// 	x_frt_is_n_pls,
+	// 	theta_ei_js_n_pls,
+	// )
 
 }
 
@@ -1115,7 +1115,7 @@ func _run_tick_ground(self *Sequence, pp *PreCalcParameters, gc_n *GroundConditi
 		phi_a1 := self.bs.phi_a1_js_ms[gidx]
 		theta_dsh_srf_a_js_ms_npls[j] = make([]float64, 12)
 		for i := 0; i < 12; i++ {
-			theta_dsh_srf_a_js_ms_npls[j][i] = phi_a1[i]*gc_n.q_srf_js_n.AtVec(j) +
+			theta_dsh_srf_a_js_ms_npls[j][i] = phi_a1[i]*gc_n.q_srf_js_n[j] +
 				r[i]*gc_n.theta_dsh_srf_a_js_ms_n[j][i]
 		}
 	}
@@ -1133,24 +1133,21 @@ func _run_tick_ground(self *Sequence, pp *PreCalcParameters, gc_n *GroundConditi
 		}
 	}
 
-	theta_s_js_npls := mat.NewVecDense(len(ground_idx), nil)
+	theta_s_js_npls := make([]float64, len(ground_idx))
 	for j := 0; j < len(ground_idx); j++ {
-		var sum_a, sum_t float64
-		for i := 0; i < 12; i++ {
-			sum_a += theta_dsh_srf_a_js_ms_npls[j][i]
-			sum_t += theta_dsh_srf_t_js_ms_npls[j][i]
-		}
+		sum_a := floats.Sum(theta_dsh_srf_a_js_ms_npls[j])
+		sum_t := floats.Sum(theta_dsh_srf_t_js_ms_npls[j])
 
 		gidx := ground_idx[j]
-		theta_s_js_npls.SetVec(j,
-			(self.bs.phi_a0_js.AtVec(gidx)*h_i_js.AtVec(j)*self.weather.theta_o_ns_plus[nn+1]+
-				self.bs.phi_t0_js.AtVec(gidx)*self.bs.k_eo_js.AtVec(gidx)*self.bs.theta_o_eqv_js_ns.At(gidx, nn+1)+
-				sum_a+sum_t)/(1.0+self.bs.phi_a0_js.AtVec(gidx)*h_i_js.AtVec(j)))
+		theta_s_js_npls[j] =
+			(self.bs.phi_a0_js.AtVec(gidx)*h_i_js.AtVec(j)*self.weather.theta_o_ns_plus[nn+1] +
+				self.bs.phi_t0_js.AtVec(gidx)*self.bs.k_eo_js.AtVec(gidx)*self.bs.theta_o_eqv_js_ns.At(gidx, nn+1) +
+				sum_a + sum_t) / (1.0 + self.bs.phi_a0_js.AtVec(gidx)*h_i_js.AtVec(j))
 	}
 
-	q_srf_js_n := mat.NewVecDense(len(ground_idx), nil)
+	q_srf_js_n := make([]float64, len(ground_idx))
 	for j := 0; j < len(ground_idx); j++ {
-		q_srf_js_n.SetVec(j, h_i_js.AtVec(j)*(self.weather.theta_o_ns_plus[nn+1]-theta_s_js_npls.AtVec(j)))
+		q_srf_js_n[j] = h_i_js.AtVec(j) * (self.weather.theta_o_ns_plus[nn+1] - theta_s_js_npls[j])
 	}
 
 	return &GroundConditions{
@@ -1184,14 +1181,21 @@ func get_x_frt_is_n_pls(
 	x_r_is_n_pls []float64,
 ) []float64 {
 	var temp1, temp2, temp3 mat.VecDense
-	temp1.AddScaledVec(c_lh_frt_is, delta_t, g_lh_frt_is) //(c_lh_frt_is + delta_t*g_lh_frt_is)
 
-	temp2.AddVec(c_lh_frt_is, mat.NewVecDense(len(x_frt_is_n), x_frt_is_n))
-	temp3.AddVec(g_lh_frt_is, mat.NewVecDense(len(x_r_is_n_pls), x_r_is_n_pls))
-	temp3.ScaleVec(delta_t, &temp3)
-	temp2.AddVec(&temp2, &temp3) //(c_lh_frt_is + delta_t*g_lh_frt_is)*x_frt_is_n + delta_t*g_lh_frt_is*x_r_is_n_pls
+	// c_lh_frt_is * x_frt_is_n
+	temp1.MulElemVec(c_lh_frt_is, mat.NewVecDense(len(x_frt_is_n), x_frt_is_n))
 
-	temp1.DivElemVec(&temp2, &temp1)
+	// g_lh_frt_is * x_r_is_n_pls
+	temp2.MulElemVec(g_lh_frt_is, mat.NewVecDense(len(x_r_is_n_pls), x_r_is_n_pls))
+
+	// c_lh_frt_is * x_frt_is_n + delta_t * (g_lh_frt_is * x_r_is_n_pls)
+	temp1.AddScaledVec(&temp1, delta_t, &temp2)
+
+	// c_lh_frt_is + delta_t * g_lh_frt_is
+	temp3.AddScaledVec(c_lh_frt_is, delta_t, g_lh_frt_is)
+
+	// temp1 / temp3
+	temp1.DivElemVec(&temp1, &temp3)
 
 	slice := make([]float64, temp1.Len())
 	copy(slice, temp1.RawVector().Data)
@@ -1465,7 +1469,7 @@ func get_q_s_js_n_pls(
 	var temp1, temp2 mat.VecDense
 	temp1.SubVec(mat.NewVecDense(len(theta_ei_js_n_pls), theta_ei_js_n_pls), theta_s_js_n_pls)
 	temp2.AddVec(h_s_c_js, h_s_r_js)
-	temp1.DivElemVec(&temp1, &temp2)
+	temp1.MulElemVec(&temp1, &temp2)
 
 	slice := make([]float64, temp1.Len())
 	copy(slice, temp1.RawVector().Data)
@@ -1609,7 +1613,7 @@ func get_theta_frt_is_n_pls(
 	temp2.ScaleVec(delta_t, g_sh_frt_is)
 	temp2.AddVec(c_sh_frt_is, &temp2)
 
-	temp1.AddVec(&temp1, &temp2)
+	temp1.DivElemVec(&temp1, &temp2)
 
 	slice := make([]float64, temp1.Len())
 	copy(slice, temp1.RawVector().Data)
@@ -2243,40 +2247,36 @@ func get_f_brm_is_is_n_pls(
 	v_vent_out_is_n []float64,
 	v_vent_ntr_set_is []float64,
 ) (*mat.Dense, *mat.Dense) {
-	vDiag := func(v mat.Vector) *mat.DiagDense {
+	vDiag := func(v *mat.VecDense) *mat.DiagDense {
 		n := v.Len()
-		diag := mat.NewDiagDense(n, nil)
-		for i := 0; i < n; i++ {
-			diag.SetDiag(i, v.AtVec(i))
-		}
+		diag := mat.NewDiagDense(n, v.RawVector().Data)
 		return diag
 	}
 
 	// Python: v_rm_is * rho_a * c_a / delta_t
-	temp1 := &mat.VecDense{}
-	temp1.ScaleVec(rho_a*c_a/delta_t, mat.NewVecDense(len(v_rm_is), v_rm_is))
+	temp1 := make([]float64, len(v_rm_is))
+	floats.ScaleTo(temp1, rho_a*c_a/delta_t, v_rm_is)
 
 	// Python: (p_js_is - f_wsr_js_is) * a_s_js * h_s_c_js
-	temp2 := &mat.Dense{}
-	temp2.Sub(p_js_is, f_wsr_js_is)
-	temp2.Apply(func(i, j int, v float64) float64 {
-		return v * a_s_js.AtVec(j) * h_s_c_js.AtVec(j)
-	}, temp2)
+	var temp2 mat.Dense
+	temp2.Apply(func(j, i int, v float64) float64 {
+		return (p_js_is.At(j, i) - v) * a_s_js.AtVec(j) * h_s_c_js.AtVec(j)
+	}, f_wsr_js_is)
 
 	// Python: np.dot(p_is_js, temp2)
-	temp3 := &mat.Dense{}
-	temp3.Mul(p_is_js, temp2)
+	var temp3 mat.Dense
+	temp3.Mul(p_is_js, &temp2)
 
 	// Python: c_sh_frt_is * g_sh_frt_is / (c_sh_frt_is + g_sh_frt_is * delta_t)
-	temp4 := &mat.VecDense{}
+	var temp4 mat.VecDense
 	temp4.MulElemVec(c_sh_frt_is, g_sh_frt_is)
-	temp5 := &mat.VecDense{}
+	var temp5 mat.VecDense
 	temp5.ScaleVec(delta_t, g_sh_frt_is)
-	temp5.AddVec(c_sh_frt_is, temp5)
-	temp4.DivElemVec(temp4, temp5)
+	temp5.AddVec(c_sh_frt_is, &temp5)
+	temp4.DivElemVec(&temp4, &temp5)
 
 	// Python: v_diag(temp4)
-	temp6 := vDiag(temp4)
+	temp6 := vDiag(&temp4)
 
 	// Python: c_a * rho_a * (v_diag(v_vent_out_is_n) - v_vent_int_is_is_n)
 	temp7 := mat.NewDiagDense(len(v_vent_out_is_n), v_vent_out_is_n)
@@ -2286,7 +2286,7 @@ func get_f_brm_is_is_n_pls(
 
 	// Python: temp1 + temp3 + temp6 + temp8
 	var result1 mat.Dense
-	result1.Add(vDiag(temp1), temp3)
+	result1.Add(mat.NewDiagDense(len(temp1), temp1), &temp3)
 	result1.Add(&result1, temp6)
 	result1.Add(&result1, &temp8)
 
@@ -2616,5 +2616,10 @@ func get_theta_s_rear_js_n(
 	finalResult.AddVec(&result1, &result2)
 	finalResult.AddVec(&finalResult, &result3)
 
-	return finalResult.RawVector().Data
+	result := finalResult.RawVector()
+	if result.Inc != 1 {
+		panic("result.Inc != 1")
+	}
+
+	return result.Data
 }

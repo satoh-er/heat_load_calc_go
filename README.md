@@ -12,3 +12,11 @@ In order to speed up the process, we believe the following should be kept in min
 1. Always allocate memory for matrices generated as local variables in run_tick, and those that can be allocated in Condition should be allocated in Condition.
 2. if a table lookup using map is performed within a function, but the number of executions is large, it should be a switch statement. (Global variables should be avoided. Also, Go does not have static.)
 3. constants should be defined as constants.
+
+# Quick Start
+
+```
+cd heat_load_calc
+go build
+./heat_load_calc -input ../example/data_example1.json
+```

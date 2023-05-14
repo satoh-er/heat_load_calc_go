@@ -76,7 +76,7 @@ func get_theta_o_eqv_j_ns_for_external_general_part_and_external_opaque_part(
 				(a_s_j*(i_s_dn_j_ns[n]*(1.0-f_ss_dn_j_ns[n])+
 					i_s_sky_j_ns[n]*(1.0-f_ss_sky_j_ns)+
 					i_s_ref_j_ns[n]*(1.0-f_ss_ref_j_ns))-
-					eps_r_o_j*r_s_n_j_ns[n]))
+					eps_r_o_j*r_s_n_j_ns[n])*r_s_o_j)
 	}
 
 	return theta_o_eqv_j_ns

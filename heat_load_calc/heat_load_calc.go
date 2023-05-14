@@ -8,19 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
-
-type Config struct {
-	HouseDataPath        string
-	OutputDataDir        string
-	IsScheduleSaved      bool
-	WeatherSpecifyMethod string
-	WeatherFilePath      string
-	Region               int
-	IsWeatherSaved       bool
-}
 
 /*
 負荷計算処理の実行
@@ -29,20 +18,16 @@ type Config struct {
         logger
         house_data_path (str): 住宅計算条件JSONファイルへのパス
         output_data_dir (str): 出力フォルダへのパス
-        is_schedule_saved: スケジュールを出力するか否か
         weather_specify_method: 気象データの指定方法
         weather_file_path: 気象データのファイルパス
         region: 地域の区分
-        is_weather_saved: 気象データを出力するか否か
 */
 func run(
 	house_data_path string,
 	output_data_dir string,
-	is_schedule_saved bool,
 	weather_specify_method string,
 	weather_file_path string,
 	region int,
-	is_weather_saved bool,
 ) {
 	// interval currently fixed at 15 minutes
 	//itv := 15
@@ -113,21 +98,6 @@ func run(
 	// 計算
 	calc(rd, w, scd, IntervalM15, 4, 365, 365, 183)
 
-	// 気象データの保存
-	if is_weather_saved {
-
-		weather_path := filepath.Join(output_data_dir, "weather_for_method_file.csv")
-		log.Printf("Save weather data to `%s`", weather_path)
-		//dd := w.get_weather_as_pandas_data_frame()
-		//dd.to_csv(weather_path, encoding='utf-8')
-	}
-
-	// スケジュールファイルの保存
-	if is_schedule_saved {
-
-		scd.save_schedule(output_data_dir)
-	}
-
 	// // ---- 計算結果ファイルの保存 ----
 
 	// // 計算結果（瞬時値）
@@ -148,9 +118,6 @@ func main() {
 	var output_data_dir string
 	flag.StringVar(&output_data_dir, "o", ".", "出力フォルダ")
 
-	var schedule_saved bool
-	flag.BoolVar(&schedule_saved, "schedule_saved", false, "スケジュールを出力するか否かを指定します。")
-
 	var weather string
 	flag.StringVar(&weather, "weather", "ees", "気象データの作成方法を指定します。")
 
@@ -158,36 +125,23 @@ func main() {
 	flag.StringVar(&weather_path, "weather_path", "", "気象データの絶対パスを指定します。weatherオプションでfileが指定された場合は必ず指定します。")
 
 	var region int
-	flag.IntVar(&region, "region", 0, "地域の区分を指定します。気象データの作成方法として建築物省エネ法を指定した場合には必ず指定します。")
-
-	var weather_saved bool
-	flag.BoolVar(&weather_saved, "weather_saved", false, "気象データを出力するか否かを指定します。")
-
-	var logLevel string
-	flag.StringVar(&logLevel, "log", "ERROR", "ログレベルを指定します。 (Default=ERROR)")
+	flag.IntVar(&region, "region", 6, "地域の区分を指定します。気象データの作成方法として建築物省エネ法を指定した場合には必ず指定します。")
 
 	// 引数を受け取る
 	flag.Parse()
 
-	// Print flag values
-	fmt.Printf("house_data: %s\n", house_data)
-	fmt.Printf("output_data_dir: %s\n", output_data_dir)
-	fmt.Printf("schedule_saved: %t\n", schedule_saved)
-	fmt.Printf("weather: %s\n", weather)
-	fmt.Printf("weather_path: %s\n", weather_path)
-	fmt.Printf("region: %d\n", region)
-	fmt.Printf("weather_saved: %t\n", weather_saved)
+	if house_data == "" {
+		log.Fatal("inputオプションを指定してください。")
+	}
 
 	start := time.Now()
 
 	run(
-		"example/data_example1.json",
+		house_data,
 		output_data_dir,
-		schedule_saved,
 		weather,
 		weather_path,
-		6,
-		weather_saved,
+		region,
 	)
 
 	elapsedTime := time.Since(start)
