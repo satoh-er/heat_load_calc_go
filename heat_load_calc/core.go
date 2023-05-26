@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 )
 
 /*
@@ -89,8 +90,8 @@ func calc(
 	var l_cs_is [15]float64
 	for n := 0; n < n_step_main; n++ {
 		c_n, l_cs_is_n = sqc.run_tick(n, n, n, c_n, result)
-		for i := 0; i < len(l_cs_is_n); i++{
-			l_cs_is[i] += l_cs_is_n[i]
+		for i, x := range l_cs_is_n{
+			l_cs_is[i] += x
 		}
 		
 		if n == int(float64(n_step_main)/12*float64(m)) {
@@ -113,4 +114,43 @@ func calc(
 	// }
 
 	// return dd_i, dd_a, nil
+}
+
+func get_h_and_c_period(region_code int) (time.Time, time.Time, time.Time, time.Time) {
+
+	(heating_st, heating_en, cooling_st, cooling_en) := switch region_code {
+		case 1: (time.Date(1989, 9, 24, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 6, 7, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 7, 10, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 8, 31, 23, 59, 59, 0, 0, time.Local))  // 1地域（北見）
+		case 2: (time.Date(1989, 9, 26, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 6, 4, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 7, 15, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 8, 31, 23, 59, 59, 0, 0, time.Local))  // 2地域（岩見沢）
+		case 3: (time.Date(1989, 9, 30, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 5, 31, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 7, 10, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 8, 31, 23, 59, 59, 0, 0, time.Local))  // 3地域（盛岡）
+		case 4: (time.Date(1989, 10, 1, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 5, 30, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 7, 10, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 8, 31, 23, 59, 59, 0, 0, time.Local))  // 4地域（長野）
+		case 5: (time.Date(1989, 10, 10, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 5, 15, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 7, 6, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 8, 31, 23, 59, 59, 0, 0, time.Local))  // 5地域（宇都宮）
+		case 6: (time.Date(1989, 11, 4, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 4, 21, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 5, 30, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 9, 23, 23, 59, 59, 0, 0, time.Local))  // 6地域（岡山）
+		case 7: (time.Date(1989, 11, 26, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 3, 27, 23, 59, 59, 0, 0, time.Local),
+				time.Date(1989, 5, 15, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 10, 13, 23, 59, 59, 0, 0, time.Local))  // 7地域（宮崎）
+		case 8: (nil, nil,
+				time.Date(1989, 3, 25, 0, 0, 0, 0, time.Local),
+				time.Date(1989, 12, 14, 23, 59, 59, 0, 0, time.Local))  // 8地域（那覇）
+	}
+
+	return (heating_st, heating_en, cooling_st, cooling_en)
 }
