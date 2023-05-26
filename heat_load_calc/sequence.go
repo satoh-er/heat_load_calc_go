@@ -162,7 +162,7 @@ func NewSequence(
 	}
 }
 
-func (s *Sequence) run_tick(n int, nn int, nn_plus int, c_n *Conditions, recorder *Recorder) *Conditions {
+func (s *Sequence) run_tick(n int, nn int, nn_plus int, c_n *Conditions, recorder *Recorder) (*Conditions, []float64) {
 	ss := s.pre_calc_parameters
 	delta_t := s._delta_t
 
@@ -578,7 +578,7 @@ Args:
 Returns:
 	次の時刻にわたす状態量
 */
-func _run_tick(self *Sequence, n int, nn int, nn_plus int, delta_t float64, ss *PreCalcParameters, c_n *Conditions, recorder *Recorder) *Conditions {
+func _run_tick(self *Sequence, n int, nn int, nn_plus int, delta_t float64, ss *PreCalcParameters, c_n *Conditions, recorder *Recorder) (*Conditions, []float64) {
 
 	// ----------- 人体発熱・人体発湿 -----------
 
@@ -1065,7 +1065,7 @@ func _run_tick(self *Sequence, n int, nn int, nn_plus int, delta_t float64, ss *
 	c_n.x_frt_is_n = x_frt_is_n_pls
 	c_n.theta_ei_js_n = theta_ei_js_n_pls
 
-	return c_n
+	return c_n, l_cs_is_n
 	// return NewConditions(
 	// 	operation_mode_is_n,
 	// 	theta_r_is_n_pls,

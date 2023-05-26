@@ -78,19 +78,28 @@ func calc(
 	nn = N - n_step_run_up_build
 	nn_plus := N_plus - n_step_run_up_build
 	for n := -n_step_run_up_build; n < 0; n++ {
-		c_n = sqc.run_tick(n, nn, nn_plus, c_n, result)
+		c_n, _ = sqc.run_tick(n, nn, nn_plus, c_n, result)
 		nn++
 	}
 
 	log.Println("本計算")
 
 	m := 1
+	var l_cs_is_n []float64
+	var l_cs_is [15]float64
 	for n := 0; n < n_step_main; n++ {
-		c_n = sqc.run_tick(n, n, n, c_n, result)
+		c_n, l_cs_is_n = sqc.run_tick(n, n, n, c_n, result)
+		for i := 0; i < len(l_cs_is_n); i++{
+			l_cs_is[i] += l_cs_is_n[i]
+		}
+		
 		if n == int(float64(n_step_main)/12*float64(m)) {
 			log.Printf("%d / 12 calculated.", m)
 			m++
 		}
+	}
+	for i := 0; i < 15; i++{
+		println(l_cs_is[i])
 	}
 
 	// result.post_recording(pp)
